@@ -14,7 +14,7 @@ fn main() {
 
     computer.load_program(&program);
 
-    // dbg!(&computer);
+    dbg!(&computer);
 
     computer.start();
 }

@@ -4,7 +4,7 @@ mod clock;
 
 use cpu::CPU;
 use memory::Memory;
-use clock::Clock;
+use clock::{Clock, TickCount};
 
 const DEFAULT_MEMORY_SIZE: usize = 0x4000;
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
@@ -36,8 +36,14 @@ impl Computer {
     }
 
     pub fn start(&mut self) {
-        self.clock.tick();
-        self.cpu.execute_and_fetch();
+        let mut number_of_ticks: TickCount = 1; 
+        loop {
+            self.clock.tick(number_of_ticks);
+            match self.cpu.fetch_and_execute() {
+                Some(n) => number_of_ticks = n,
+                None => break,
+            }
+        }
     }
 
     pub fn load_program(&mut self, program: &[u8]) {

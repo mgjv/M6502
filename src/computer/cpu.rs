@@ -1,6 +1,8 @@
 use bitflags::bitflags;
 use smart_default::SmartDefault;
 
+use super::clock::TickCount;
+
 // The CPU
 #[derive(Debug, SmartDefault)]
 pub struct CPU {
@@ -18,14 +20,21 @@ pub struct CPU {
     // typically 1 - 3 MHz
 }
 
+
 impl CPU {
     pub fn new() -> Self {
         Self::default()
     }
 
     /* Run for one clock cycle */
-    pub fn execute_and_fetch(&mut self) {
+    pub fn fetch_and_execute(&mut self) -> Option<TickCount> {
+        
         self.program_counter += 1;
+
+        if self.program_counter > 10 {
+            return None;
+        }
+        Some(1)
     }
 
     // fn fetch(&self) {}
