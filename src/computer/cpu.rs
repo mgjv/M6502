@@ -1,42 +1,37 @@
 use bitflags::bitflags;
+use smart_default::SmartDefault;
 
 // The CPU
-#[derive(Default)]
+#[derive(Debug, SmartDefault)]
 pub struct CPU {
-    data_bus: u16,
-    address_bus: u16,
+    // data_bus: u16,
+    // address_bus: u16,
 
-    accumulator: u8,
-    x_index: u8,
-    y_index: u8,
+    // accumulator: u8,
+    // x_index: u8,
+    // y_index: u8,
 
-    stack_pointer: u16,
+    // stack_pointer: u16,
     program_counter: u16,
 
-    flags: u8,
+    // flags: u8,
+    // typically 1 - 3 MHz
 }
 
 impl CPU {
-    pub fn new(start_address: u16) -> Self {
-        Self {
-            program_counter: start_address,
-            ..Default::default()
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    pub fn tick(&self) {
-        
+    /* Run for one clock cycle */
+    pub fn execute_and_fetch(&mut self) {
+        self.program_counter += 1;
     }
 
-    fn fetch(&self) {
+    // fn fetch(&self) {}
 
-    }
-
-    fn execute(&self) {
-
-    }
+    // fn execute(&self) {}
 }
-
 
 bitflags! {
     pub struct Flags: u8 {
@@ -54,14 +49,13 @@ bitflags! {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn creation() {
-        let cpu = CPU::new(0xFFFA);
-        assert_eq!(cpu.program_counter, 0xFFFA); 
+        let cpu = CPU::new();
+        assert_eq!(cpu.program_counter, 0x0);
     }
 }

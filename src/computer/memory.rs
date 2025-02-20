@@ -1,3 +1,5 @@
+use std::fmt;
+
 use log::debug;
 
 // We will limit the address range from 0x0000 to 0xFFFF
@@ -34,6 +36,7 @@ impl Memory {
 		debug!("[Write]\t\t{:02x} at {:04x}", value, address);
 		self.data[address as usize] = value;
 	}
+
     /* 
 	fn read_word(&self, address: u16) -> u16 {
 		let lower_byte = self.read_byte(address) as u16;
@@ -51,10 +54,30 @@ impl Memory {
 
 }
 
+// TODO somehow let the user determine how much and which memory to show
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (rows, cols) = (5, 16);
+        write!(f, "\"")?;
+        for i in 0..rows {
+            write!(f, "\n\t0x{:04X}:", i * cols)?;
+            for j in 0..cols {
+                if j % 8 == 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, " {:02X}", &self.data[i * cols + j])?;
+            }
+        }
+        if rows * cols < self.size() {
+            write!(f, " ...")?;
+        }
+        write!(f, "\n\"")?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::mem;
-
     use super::*;
 
     #[test]
