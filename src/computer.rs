@@ -35,11 +35,11 @@ impl Computer {
         format!("6502 emulator - {} bytes memory", self.memory.size())
     }
 
-    pub fn start(&mut self) {
+    pub fn run(&mut self) {
         let mut number_of_ticks: TickCount = 1; 
         loop {
             self.clock.tick(number_of_ticks);
-            match self.cpu.fetch_and_execute() {
+            match self.cpu.fetch_and_execute(&self.memory) {
                 Some(n) => number_of_ticks = n,
                 None => break,
             }

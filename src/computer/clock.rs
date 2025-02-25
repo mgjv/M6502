@@ -26,8 +26,6 @@ impl Clock {
      * This requires that the amount of time elapsed outside of this
      * function isn't consistently larger than the clock_speed's interval
      */
-    // TODO Ranged max should be set to max for ops
-  
     pub fn tick(&mut self, tick_count: TickCount) {
         let now = Instant::now();
         let next_tick = self.last_tick + self.interval.saturating_mul(tick_count as u32);
