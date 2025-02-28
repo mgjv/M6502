@@ -24,6 +24,7 @@ impl Memory {
         self.data.len()
     }
 
+    // TODO do we need to make this "safe" for end of memory space? 
     pub fn read_byte(&self, address: u16) -> u8 {
 		debug!(
 			"[Read]\t\t{:02x} from {:04x}",
@@ -32,26 +33,20 @@ impl Memory {
 		self.data[address as usize]
 	}
 
+    // Read the next two bytes from memory, and return it as an address
+    // TODO do we need to make this "safe" for end of memory space? 
+    pub fn read_two_bytes(&self, address: u16) -> [u8; 2] {
+        // TODO this could probably be done with a slice?
+        [
+            self.read_byte(address),
+            self.read_byte(address.wrapping_add(1)),
+        ]
+    }
+
     pub fn write_byte(&mut self, address: u16, value: u8) {
 		debug!("[Write]\t\t{:02x} at {:04x}", value, address);
 		self.data[address as usize] = value;
 	}
-
-    /* 
-	fn read_word(&self, address: u16) -> u16 {
-		let lower_byte = self.read_byte(address) as u16;
-		let higher_byte = self.read_byte(address + 1) as u16;
-		higher_byte << 8 | lower_byte
-	}
-
-	fn modify<F>(&mut self, address: u16, f: F)
-	where
-		F: Fn(u8) -> u8,
-	{
-		self.data[address as usize] = f(self.data[address as usize]);
-	}
-    */
-
 }
 
 // TODO somehow let the user determine how much and which memory to show

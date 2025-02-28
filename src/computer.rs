@@ -4,32 +4,29 @@ mod clock;
 
 use cpu::CPU;
 use memory::Memory;
-use clock::{Clock, TickCount};
+use clock::{Clock, NormalClock, TickCount};
 
 const DEFAULT_MEMORY_SIZE: usize = 0x4000;
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
 #[derive(Debug)]
-pub struct Computer {
+pub struct Computer<T: Clock> {
     cpu: CPU,
     memory: Memory,
-    clock: Clock,
+    clock: T,
 }
 
-impl Default for Computer {
-    fn default() -> Self {
+impl Computer<NormalClock> {
+    pub fn new() -> Self {
         Self { 
             cpu: CPU::new(),
             memory: Memory::new(DEFAULT_MEMORY_SIZE),
-            clock: Clock::new(DEFAULT_CLOCK_SPEED),
+            clock: NormalClock::new(DEFAULT_CLOCK_SPEED),
         }
     }
 }
 
-impl Computer {
-    pub fn new() -> Self {
-        Self::default()
-    }
+impl<T: Clock> Computer<T> {
 
     pub fn startup_message(&self) -> String {
         format!("6502 emulator - {} bytes memory", self.memory.size())
@@ -65,14 +62,14 @@ mod tests {
         let computer = Computer {
             cpu: CPU::new(),
             memory: Memory::new(0x10000),
-            clock: Clock::new(1_000),
+            clock: NormalClock::new(1_000),
         };
         print!("{}", computer.startup_message());
 
         let computer = Computer {
             cpu: CPU::new(),
             memory: Memory::new(0x100),
-            clock: Clock::new(1_000),
+            clock: NormalClock::new(1_000),
         };
         print!("{}", computer.startup_message());
     }
@@ -83,7 +80,7 @@ mod tests {
         let mut computer = Computer {
             cpu: CPU::new(),
             memory: Memory::new(0x0100),
-            clock: Clock::new(1_000),
+            clock: NormalClock::new(1_000),
         };
 
         computer.load_program(&program);
