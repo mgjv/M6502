@@ -10,33 +10,31 @@ const DEFAULT_MEMORY_SIZE: usize = 0x4000;
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
 #[derive(Debug)]
-pub struct Computer<T: Clock> {
-    cpu: CPU,
-    memory: Memory,
-    clock: T,
+pub struct Computer<C: Clock> {
+    cpu: CPU<Memory>,
+    clock: C,
 }
 
 impl Computer<NormalClock> {
     pub fn new() -> Self {
         Self { 
-            cpu: CPU::new(),
-            memory: Memory::new(DEFAULT_MEMORY_SIZE),
+            cpu: CPU::new(Memory::new(DEFAULT_MEMORY_SIZE)),
             clock: NormalClock::new(DEFAULT_CLOCK_SPEED),
         }
     }
 }
 
-impl<T: Clock> Computer<T> {
+impl<C: Clock> Computer<C> {
 
     pub fn startup_message(&self) -> String {
-        format!("6502 emulator - {} bytes memory", self.memory.size())
+        format!("6502 emulator - {} bytes memory", self.cpu.memory_size())
     }
 
     pub fn run(&mut self) {
         let mut number_of_ticks: TickCount = 1; 
         loop {
             self.clock.tick(number_of_ticks);
-            match self.cpu.fetch_and_execute(&self.memory) {
+            match self.cpu.fetch_and_execute() {
                 Some(n) => number_of_ticks = n,
                 None => break,
             }
@@ -44,14 +42,9 @@ impl<T: Clock> Computer<T> {
     }
 
     pub fn load_program(&mut self, program: &[u8]) {
-        let mut address = 0;
-        for b in program {
-            self.memory.write_byte(address, *b);
-            address += 1;
-        }
+        self.cpu.load_program(program);
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -60,34 +53,15 @@ mod tests {
     #[test]
     fn construction() {
         let computer = Computer {
-            cpu: CPU::new(),
-            memory: Memory::new(0x10000),
+            cpu: CPU::new(Memory::new(0x10000)),
             clock: NormalClock::new(1_000),
         };
         print!("{}", computer.startup_message());
 
         let computer = Computer {
-            cpu: CPU::new(),
-            memory: Memory::new(0x100),
+            cpu: CPU::new(Memory::new(0x100)),
             clock: NormalClock::new(1_000),
         };
         print!("{}", computer.startup_message());
-    }
-
-    #[test]
-    fn load_program() {
-        let program = vec![0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
-        let mut computer = Computer {
-            cpu: CPU::new(),
-            memory: Memory::new(0x0100),
-            clock: NormalClock::new(1_000),
-        };
-
-        computer.load_program(&program);
-
-        for i in 0..program.len() {
-            let data = computer.memory.read_byte(i as u16);
-            assert_eq!(program[i], data);
-        }
     }
 }

@@ -17,4 +17,6 @@ fn main() {
     dbg!(&computer);
 
     computer.run();
+
+    dbg!(&computer);
 }

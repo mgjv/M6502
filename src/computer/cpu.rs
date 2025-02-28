@@ -1,9 +1,8 @@
 // use bitflags::bitflags;
-use smart_default::SmartDefault;
 use log::{debug, error};
 
 use super::clock::TickCount;
-use super::memory::Memory;
+use super::memory::{Bus, Memory};
 
 /*
  * For much of the information used here, see
@@ -11,12 +10,11 @@ use super::memory::Memory;
  */
 
 // The CPU
-#[derive(Debug, SmartDefault)]
-pub struct CPU {
-    // data_bus: u16,
-    // address_bus: u16,
+#[derive(Debug)]
+pub struct CPU<B: Bus> {
+    bus: B,
 
-    // accumulator: u8,
+    accumulator: u8,
     x_index: u8,
     y_index: u8,
 
@@ -42,15 +40,30 @@ pub struct CPU {
 //     }
 // }
 
-impl CPU {
-    pub fn new() -> Self {
-        Self::default()
+impl CPU<Memory> {
+    pub fn new(memory: Memory) -> Self {
+        Self {
+            bus: memory,
+            accumulator: 0,
+            x_index: 0,
+            y_index: 0,
+            // TODO This is probably not right
+            program_counter: 0,
+        }
+    }
+
+    pub fn load_program(&mut self, program: &[u8]) {
+        let mut address = 0;
+        for b in program {
+            self.bus.write_byte(address, *b);
+            address += 1;
+        }
     }
 
     /* Run for one clock cycle */
-    pub fn fetch_and_execute(&mut self, memory: &Memory) -> Option<TickCount> {
+    pub fn fetch_and_execute(&mut self) -> Option<TickCount> {
         // Read a byte
-        let opcode = memory.read_byte(self.program_counter);
+        let opcode = self.bus.read_byte(self.program_counter);
 
         // Identify the operator
         debug!("opcode {:02X} ", opcode);
@@ -65,8 +78,8 @@ impl CPU {
                 
                 // Fetch given arguments
                 let operand_size = address_mode.operand_size();
-                let operand_bytes = memory.read_two_bytes(self.program_counter + 1);
-                let operand = self.get_operand(&memory, address_mode, operand_bytes);
+                let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
+                let operand = self.get_operand(address_mode, operand_bytes);
 
                 // update the state of memory and CPU
                 self.execute(instruction, operand);
@@ -88,10 +101,14 @@ impl CPU {
                 error!("Unused opcode {:02X} found at address {:04X}", opcode, self.program_counter);
                 None
             }
-        }    
+        }
     }
 
-    fn get_operand(&self, memory: &Memory, addressmode: AddressMode, bytes: [u8; 2]) -> Operand {
+    pub fn memory_size(&self) -> usize {
+        self.bus.memory_size()
+    }  
+
+    fn get_operand(&self, addressmode: AddressMode, bytes: [u8; 2]) -> Operand {
         match addressmode {
             AddressMode::Accumulator => Operand::Implied,
             AddressMode::Absolute    => Operand::Address(bytes_to_address(bytes[0], bytes[1])),
@@ -102,20 +119,20 @@ impl CPU {
             // FIXME TRIPLE check the next three. Byte order for addresses and logic
             AddressMode::Indirect    => {
                 let address = bytes_to_address(bytes[0], bytes[1]);
-                let bytes = memory.read_two_bytes(address);
+                let bytes = self.bus.read_two_bytes(address);
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]))
             },
             AddressMode::IndirectX   => {
                 // Add X to zero page address stored in bytes[0]. Return address stored there
                 // TODO If bytes[0] is 0xfe, this is probably not right, as it will read past the zero page
                 let address = bytes_to_address(0, bytes[0].wrapping_add(self.x_index));
-                let bytes = memory.read_two_bytes(address);
+                let bytes = self.bus.read_two_bytes(address);
                 Operand::Address(bytes_to_address(bytes[1], bytes[0]))
             },
             AddressMode::IndirectY   => {
                 // Add contents of Y to address stored in zero page at byte[0] and byte[0] + 1, and return
                 let address = bytes_to_address(0, bytes[0] );
-                let bytes = memory.read_two_bytes(address);
+                let bytes = self.bus.read_two_bytes(address);
                 Operand::Address(bytes_to_address(bytes[1], bytes[0]).wrapping_add(self.y_index.into()))
             },
             // FIXME All of the below need to still be implemented
@@ -127,12 +144,85 @@ impl CPU {
     }
 
     fn execute(&mut self, instruction: Instruction, operand: Operand) {
-
+        debug!("Executing {:?} {:?}", instruction, operand);
+        match instruction {
+            Instruction::ADC => todo!(),
+            Instruction::AND => todo!(),
+            Instruction::ASL => todo!(),
+            Instruction::BCC => todo!(),
+            Instruction::BCS => todo!(),
+            Instruction::BEQ => todo!(),
+            Instruction::BIT => todo!(),
+            Instruction::BMI => todo!(),
+            Instruction::BNE => todo!(),
+            Instruction::BPL => todo!(),
+            Instruction::BRK => todo!(),
+            Instruction::BVC => todo!(),
+            Instruction::BVS => todo!(),
+            Instruction::CLC => todo!(),
+            Instruction::CLD => todo!(),
+            Instruction::CLI => todo!(),
+            Instruction::CLV => todo!(),
+            Instruction::CMP => todo!(),
+            Instruction::CPX => todo!(),
+            Instruction::CPY => todo!(),
+            Instruction::DEC => todo!(),
+            Instruction::DEX => todo!(),
+            Instruction::DEY => todo!(),
+            Instruction::EOR => todo!(),
+            Instruction::INC => todo!(),
+            Instruction::INX => todo!(),
+            Instruction::INY => todo!(),
+            Instruction::JMP => todo!(),
+            Instruction::JSR => todo!(),
+            Instruction::LDA => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.accumulator = value;
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.accumulator = value;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::LDX => todo!(),
+            Instruction::LDY => todo!(),
+            Instruction::LSR => todo!(),
+            Instruction::NOP => todo!(),
+            Instruction::ORA => todo!(),
+            Instruction::PHA => todo!(),
+            Instruction::PHP => todo!(),
+            Instruction::PLA => todo!(),
+            Instruction::PLP => todo!(),
+            Instruction::ROL => todo!(),
+            Instruction::ROR => todo!(),
+            Instruction::RTI => todo!(),
+            Instruction::RTS => todo!(),
+            Instruction::SBC => todo!(),
+            Instruction::SEC => todo!(),
+            Instruction::SED => todo!(),
+            Instruction::SEI => todo!(),
+            Instruction::STA => todo!(),
+            Instruction::STX => todo!(),
+            Instruction::STY => todo!(),
+            Instruction::TAX => todo!(),
+            Instruction::TAY => todo!(),
+            Instruction::TSX => todo!(),
+            Instruction::TXA => todo!(),
+            Instruction::TXS => todo!(),
+            Instruction::TYA => todo!(),
+        }
     }
 }
 
+fn illegal_opcode(instruction: Instruction, operand: Operand) {
+    error!("Attempt to execute illegal opcode for {:?} with operand {:?}", instruction, operand);
+}
+
 // Possible address modes for the above instructions
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum AddressMode {
     Accumulator, // OPC A	    operand is AC (implied single byte instruction)
     Absolute,    // OPC $LLHH	operand is address $HHLL
@@ -150,6 +240,7 @@ enum AddressMode {
 }
 
 // What sort of argument unwrapping/fetching may need to happen
+#[derive(Clone, Debug, PartialEq)]
 enum Operand {
     Implied,
     Immediate(u8),
@@ -528,7 +619,24 @@ mod tests {
 
     #[test]
     fn creation() {
-        let cpu = CPU::new();
+        let cpu = CPU::new(Memory::new(10));
         assert_eq!(cpu.program_counter, 0x0);
+        assert_eq!(cpu.accumulator, 0x0);
+        assert_eq!(cpu.x_index, 0x0);
+        assert_eq!(cpu.y_index, 0x0);
+        
+    }
+
+    #[test]
+    fn load_program() {
+        let program = vec![0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
+        let mut cpu = CPU::new(Memory::new(100));
+
+        cpu.load_program(&program);
+
+        for i in 0..program.len() {
+            let data = cpu.bus.read_byte(i as u16);
+            assert_eq!(program[i], data);
+        }
     }
 }

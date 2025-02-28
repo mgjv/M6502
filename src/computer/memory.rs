@@ -1,6 +1,24 @@
+use std::fmt::Debug;
 use std::fmt;
 
-use log::debug;
+use log::trace;
+
+/*
+ * Bus abstraction
+ * 
+ * We should really get the address first and store it, then use
+ * that address for the subsequent reads, but the situation where
+ * a set is followed by multiple reads is much rarer than the set 
+ * and the read coming in pairs, so we optimise the API for that
+*/
+pub trait Bus: Debug {
+    fn read_byte(&self, address: u16) -> u8;
+    fn read_two_bytes(&self, address: u16) -> [u8; 2];
+
+    fn write_byte(&mut self, address: u16, byte: u8);
+
+    fn memory_size(&self) -> usize;
+}
 
 // We will limit the address range from 0x0000 to 0xFFFF
 // TODO The fact that this needs to be a usize, but all our addressing 
@@ -19,23 +37,22 @@ impl Memory {
             data: vec!(0; usize::from(size)),
         }
     }
-    
-    pub fn size(&self) -> usize {
-        self.data.len()
-    }
+
+}
+
+impl Bus for Memory {
 
     // TODO do we need to make this "safe" for end of memory space? 
-    pub fn read_byte(&self, address: u16) -> u8 {
-		debug!(
+    fn read_byte(&self, address: u16) -> u8 {
+		trace!(
 			"[Read]\t\t{:02x} from {:04x}",
 			self.data[address as usize], address
 		);
 		self.data[address as usize]
 	}
 
-    // Read the next two bytes from memory, and return it as an address
     // TODO do we need to make this "safe" for end of memory space? 
-    pub fn read_two_bytes(&self, address: u16) -> [u8; 2] {
+    fn read_two_bytes(&self, address: u16) -> [u8; 2] {
         // TODO this could probably be done with a slice?
         [
             self.read_byte(address),
@@ -43,14 +60,18 @@ impl Memory {
         ]
     }
 
-    pub fn write_byte(&mut self, address: u16, value: u8) {
-		debug!("[Write]\t\t{:02x} at {:04x}", value, address);
+    fn write_byte(&mut self, address: u16, value: u8) {
+		trace!("[Write]\t\t{:02x} at {:04x}", value, address);
 		self.data[address as usize] = value;
 	}
+
+    fn memory_size(&self) -> usize {
+        self.data.len()
+    }
 }
 
 // TODO somehow let the user determine how much and which memory to show
-impl fmt::Debug for Memory {
+impl Debug for Memory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (rows, cols) = (5, 16);
         write!(f, "\"")?;
@@ -63,7 +84,7 @@ impl fmt::Debug for Memory {
                 write!(f, " {:02X}", &self.data[i * cols + j])?;
             }
         }
-        if rows * cols < self.size() {
+        if rows * cols < self.memory_size() {
             write!(f, " ...")?;
         }
         write!(f, "\n\"")?;
@@ -79,11 +100,11 @@ mod tests {
     fn creation() {
         let memory = Memory::new(MAX_MEMORY_SIZE);
         // ensure memory is the correct size
-        assert_eq!(MAX_MEMORY_SIZE, memory.size());
+        assert_eq!(MAX_MEMORY_SIZE, memory.memory_size());
 
         let memory = Memory::new(0x100);
         // ensure memory is the correct size
-        assert_eq!(0x100, memory.size());
+        assert_eq!(0x100, memory.memory_size());
         // By default memory should be initialised to 0
         for i in 0..0x100 {
             let byte = memory.read_byte(i);
