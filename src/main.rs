@@ -14,9 +14,11 @@ fn main() {
 
     computer.load_program(&program);
 
-    dbg!(&computer);
+    // dbg!(&computer);
+    computer.show_state();
 
     computer.run();
 
-    dbg!(&computer);
+    // dbg!(&computer);
+    computer.show_state();
 }

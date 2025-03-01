@@ -17,7 +17,7 @@ pub struct Computer<C: Clock> {
 
 impl Computer<NormalClock> {
     pub fn new() -> Self {
-        Self { 
+    Self { 
             cpu: CPU::new(Memory::new(DEFAULT_MEMORY_SIZE)),
             clock: NormalClock::new(DEFAULT_CLOCK_SPEED),
         }
@@ -28,6 +28,10 @@ impl<C: Clock> Computer<C> {
 
     pub fn startup_message(&self) -> String {
         format!("6502 emulator - {} bytes memory", self.cpu.memory_size())
+    }
+
+    pub fn show_state(&self) {
+        self.cpu.show_state();
     }
 
     pub fn run(&mut self) {

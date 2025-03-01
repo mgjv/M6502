@@ -1,5 +1,6 @@
-// use bitflags::bitflags;
 use log::{debug, error};
+use smart_default::SmartDefault;
+use inline_colorization::*;
 
 use super::clock::TickCount;
 use super::memory::{Bus, Memory};
@@ -10,7 +11,7 @@ use super::memory::{Bus, Memory};
  */
 
 // The CPU
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub struct CPU<B: Bus> {
     bus: B,
 
@@ -20,25 +21,22 @@ pub struct CPU<B: Bus> {
 
     // stack_pointer: u16,
     program_counter: u16,
-    // flags: u8,
+    status: Status,
 }
 
-
-// bitflags! {
-//     pub struct Flags: u8 {
-//         const PS_NEGATIVE           = 0b1000_0000;
-//         const PS_OVERFLOW           = 0b0100_0000;
-//         const PS_UNUSED             = 0b0010_0000; // JAM: Should this exist?
-//                                                   // (note that it affects the
-//                                                   // behavior of things like
-//                                                   // from_bits_truncate)
-//         const PS_BRK                = 0b0001_0000;
-//         const PS_DECIMAL_MODE       = 0b0000_1000;
-//         const PS_DISABLE_INTERRUPTS = 0b0000_0100;
-//         const PS_ZERO               = 0b0000_0010;
-//         const PS_CARRY              = 0b0000_0001;
-//     }
-// }
+#[derive(SmartDefault, Debug, PartialEq, Copy, Clone)]
+struct Status {
+    negative: bool,
+    overflow: bool,
+    #[default = true] // always appears to be set
+    ignored: bool,
+    #[default = true] // always appears to be set after reset
+    brk: bool,
+    decimal: bool,
+    irq_disable: bool,
+    zero: bool,
+    carry: bool
+}
 
 impl CPU<Memory> {
     pub fn new(memory: Memory) -> Self {
@@ -49,6 +47,45 @@ impl CPU<Memory> {
             y_index: 0,
             // TODO This is probably not right
             program_counter: 0,
+            status: Status::default(),
+        }
+    }
+}
+
+impl<B: Bus> CPU<B> {
+
+    pub fn show_state(&self) {
+
+        // Let's show the program, memory
+        println!("Program memory:");
+        self.show_memory_state(self.program_counter);
+    }
+
+    fn show_registers(&self) {
+        
+    }
+
+    fn show_memory_state(&self, focal_address: u16) {
+        let start = if focal_address > 16 {
+            ((focal_address - 16)/ 16) * 16
+        } else {
+            (focal_address/ 16) * 16
+        };
+        let end = start + 3 * 16;
+
+        for address in start .. end {
+            if address % 16 == 0 {
+                print!(" {color_blue}0x{:04X}{color_reset}: ", address);
+            }
+            if address % 16 == 8 { print!(" "); }
+            if address == focal_address { print!("{color_red}"); }
+
+            let byte = self.bus.read_byte(address);
+            print!(" {:02X}", byte);
+
+            if address == focal_address { print!("{color_reset}"); }
+
+            if address % 16 == 15 { print!("\n"); }
         }
     }
 
@@ -66,7 +103,7 @@ impl CPU<Memory> {
         let opcode = self.bus.read_byte(self.program_counter);
 
         // Identify the operator
-        debug!("opcode {:02X} ", opcode);
+        // debug!("opcode {:02X} ", opcode);
 
         match decode_instruction(opcode) {
             // If we get a BRK, we halt execution
@@ -75,11 +112,13 @@ impl CPU<Memory> {
             }
             // Any other valid instruction, we process
             Some((instruction, address_mode, cycles)) => {
-                
+
                 // Fetch given arguments
                 let operand_size = address_mode.operand_size();
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
+
+                debug!("opcode {:02x} -> {:x?}/{:x?}/{:x?} -> {:x?} {:x?}", opcode, instruction, address_mode, operand_bytes, instruction, operand);
 
                 // update the state of memory and CPU
                 self.execute(instruction, operand);
@@ -127,26 +166,37 @@ impl CPU<Memory> {
                 // TODO If bytes[0] is 0xfe, this is probably not right, as it will read past the zero page
                 let address = bytes_to_address(0, bytes[0].wrapping_add(self.x_index));
                 let bytes = self.bus.read_two_bytes(address);
-                Operand::Address(bytes_to_address(bytes[1], bytes[0]))
+                Operand::Address(bytes_to_address(bytes[0], bytes[1]))
             },
             AddressMode::IndirectY   => {
                 // Add contents of Y to address stored in zero page at byte[0] and byte[0] + 1, and return
-                let address = bytes_to_address(0, bytes[0] );
+                let address = bytes_to_address(0, bytes[0]);
                 let bytes = self.bus.read_two_bytes(address);
-                Operand::Address(bytes_to_address(bytes[1], bytes[0]).wrapping_add(self.y_index.into()))
+                Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into()))
             },
             // FIXME All of the below need to still be implemented
             AddressMode::Relative    => Operand::Implied,
-            AddressMode::Zeropage    => Operand::Implied,
+            AddressMode::Zeropage    => Operand::Address(bytes_to_address(bytes[0], 0)),
             AddressMode::ZeropageX   => Operand::Implied,
             AddressMode::ZeropageY   => Operand::Implied,
         }
     }
 
     fn execute(&mut self, instruction: Instruction, operand: Operand) {
-        debug!("Executing {:?} {:?}", instruction, operand);
+
         match instruction {
-            Instruction::ADC => todo!(),
+            Instruction::ADC => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.execute_adc(value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.execute_adc(value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::AND => todo!(),
             Instruction::ASL => todo!(),
             Instruction::BCC => todo!(),
@@ -159,10 +209,10 @@ impl CPU<Memory> {
             Instruction::BRK => todo!(),
             Instruction::BVC => todo!(),
             Instruction::BVS => todo!(),
-            Instruction::CLC => todo!(),
-            Instruction::CLD => todo!(),
-            Instruction::CLI => todo!(),
-            Instruction::CLV => todo!(),
+            Instruction::CLC => { self.status.carry = false; },
+            Instruction::CLD => { self.status.decimal = false; },
+            Instruction::CLI => { self.status.irq_disable = false; },
+            Instruction::CLV => { self.status.overflow = false; },
             Instruction::CMP => todo!(),
             Instruction::CPX => todo!(),
             Instruction::CPY => todo!(),
@@ -201,10 +251,17 @@ impl CPU<Memory> {
             Instruction::RTI => todo!(),
             Instruction::RTS => todo!(),
             Instruction::SBC => todo!(),
-            Instruction::SEC => todo!(),
-            Instruction::SED => todo!(),
-            Instruction::SEI => todo!(),
-            Instruction::STA => todo!(),
+            Instruction::SEC => { self.status.carry = true; },
+            Instruction::SED => { self.status.decimal = true; },
+            Instruction::SEI => { self.status.irq_disable = true; },
+            Instruction::STA => {
+                match operand {
+                    Operand::Address(address) => {
+                        self.bus.write_byte(address, self.accumulator);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::STX => todo!(),
             Instruction::STY => todo!(),
             Instruction::TAX => todo!(),
@@ -215,6 +272,22 @@ impl CPU<Memory> {
             Instruction::TYA => todo!(),
         }
     }
+
+    fn execute_adc(&mut self, value: u8) {
+        let a = self.accumulator;
+        let c = u8::from(self.status.carry); // either 0 or 1
+
+        let new_a = a.wrapping_add(value).wrapping_add(c);
+
+        self.status.carry = new_a < a 
+                    || (new_a == 0 && c == 0x01) 
+                    || (value == 0xff && c == 0x01);
+        self.status.overflow = (a > 0x7f && value > 0x7f && new_a < 0x80) 
+                    || (a < 0x80 && value < 0x80 && new_a > 0x7f);
+
+        self.accumulator = new_a;
+    }
+
 }
 
 fn illegal_opcode(instruction: Instruction, operand: Operand) {
@@ -222,7 +295,7 @@ fn illegal_opcode(instruction: Instruction, operand: Operand) {
 }
 
 // Possible address modes for the above instructions
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum AddressMode {
     Accumulator, // OPC A	    operand is AC (implied single byte instruction)
     Absolute,    // OPC $LLHH	operand is address $HHLL
@@ -240,7 +313,7 @@ enum AddressMode {
 }
 
 // What sort of argument unwrapping/fetching may need to happen
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Operand {
     Implied,
     Immediate(u8),
@@ -250,7 +323,7 @@ enum Operand {
 
 // first byte is low, second high
 fn bytes_to_address(lo: u8, hi: u8) -> u16 {
-    u16::from(lo) + u16::from(hi) << 8
+    u16::from(lo) + (u16::from(hi) << 8)
 }
 
 impl AddressMode {
@@ -638,5 +711,11 @@ mod tests {
             let data = cpu.bus.read_byte(i as u16);
             assert_eq!(program[i], data);
         }
+    }
+
+    #[test]
+    fn bytes_to_address_test() {
+        let address = bytes_to_address(0x30, 0x10);
+        assert_eq!(address, 0x1030);
     }
 }
