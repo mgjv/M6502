@@ -6,6 +6,8 @@ use cpu::CPU;
 use memory::Memory;
 use clock::{Clock, NormalClock, TickCount};
 
+use std::fmt::Write;
+
 const DEFAULT_MEMORY_SIZE: usize = 0x4000;
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
@@ -26,13 +28,6 @@ impl Computer<NormalClock> {
 
 impl<C: Clock> Computer<C> {
 
-    pub fn startup_message(&self) -> String {
-        format!("6502 emulator - {} bytes memory", self.cpu.memory_size())
-    }
-
-    pub fn show_state(&self) {
-        self.cpu.show_state();
-    }
 
     pub fn run(&mut self) {
         let mut number_of_ticks: TickCount = 1; 
@@ -49,6 +44,28 @@ impl<C: Clock> Computer<C> {
         self.cpu.load_program(program);
     }
 }
+
+// Formatting/Display functions
+impl<C: Clock> Computer<C> {
+
+    pub fn startup_message(&self) -> String {
+        format!("6502 emulator - {} bytes memory", self.cpu.memory_size())
+    }
+
+    #[allow(unused_must_use)]
+    pub fn show_state(&self) -> String {
+        let mut b = String::new();
+
+        // Let's show the program, memory
+        writeln!(b, "Registers:\tStatus:");
+        self.cpu.show_registers(&mut b);
+        writeln!(b, "Program memory:");
+        self.cpu.show_program_memory(&mut b);
+
+        b
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

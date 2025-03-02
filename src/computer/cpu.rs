@@ -2,6 +2,8 @@ use log::{debug, error};
 use smart_default::SmartDefault;
 use inline_colorization::*;
 
+use std::fmt;
+
 use super::clock::TickCount;
 use super::memory::{Bus, Memory};
 
@@ -52,20 +54,33 @@ impl CPU<Memory> {
     }
 }
 
+
+// Formatting/Display functions
 impl<B: Bus> CPU<B> {
 
-    pub fn show_state(&self) {
-
-        // Let's show the program, memory
-        println!("Program memory:");
-        self.show_memory_state(self.program_counter);
+    pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
+        write!(b, "  A   X   Y")?;
+        write!(b, "\tN O {color_bright_black}- B{color_reset} D I Z C\n")?;
+        write!{b, "  {:02X}  {:02X}  {:02X}", self.accumulator, self.x_index, self.y_index}?;
+        write!(b, "\t{:1b}", u8::from(self.status.negative))?;
+        write!(b, " {:1b}", u8::from(self.status.overflow))?;
+        write!(b, "{color_bright_black}")?;
+        write!(b, " {:1b}", u8::from(self.status.ignored))?;
+        write!(b, " {:1b}", u8::from(self.status.brk))?;
+        write!(b, "{color_reset}")?;
+        write!(b, " {:1b}", u8::from(self.status.decimal))?;
+        write!(b, " {:1b}", u8::from(self.status.irq_disable))?;
+        write!(b, " {:1b}", u8::from(self.status.zero))?;
+        write!(b, " {:1b}", u8::from(self.status.carry))?;
+        write!(b, "\n")?;
+        Ok(())
     }
 
-    fn show_registers(&self) {
-        
+    pub fn show_program_memory<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
+        self.show_memory_state(b, self.program_counter)
     }
 
-    fn show_memory_state(&self, focal_address: u16) {
+    pub fn show_memory_state<W: fmt::Write>(&self, b: &mut W, focal_address: u16) -> Result<(), fmt::Error> {
         let start = if focal_address > 16 {
             ((focal_address - 16)/ 16) * 16
         } else {
@@ -75,19 +90,23 @@ impl<B: Bus> CPU<B> {
 
         for address in start .. end {
             if address % 16 == 0 {
-                print!(" {color_blue}0x{:04X}{color_reset}: ", address);
+                write!(b, " {color_blue}0x{:04X}{color_reset}: ", address)?;
             }
-            if address % 16 == 8 { print!(" "); }
-            if address == focal_address { print!("{color_red}"); }
+            if address % 16 == 8 { write!(b, " ")?; }
+            if address == focal_address { write!(b, "{color_red}")?; }
 
             let byte = self.bus.read_byte(address);
-            print!(" {:02X}", byte);
+            write!(b, " {:02X}", byte)?;
 
-            if address == focal_address { print!("{color_reset}"); }
+            if address == focal_address { write!(b, "{color_reset}")?; }
 
-            if address % 16 == 15 { print!("\n"); }
+            if address % 16 == 15 { write!(b, "\n")?; }
         }
+        Ok(())
     }
+}
+
+impl<B: Bus> CPU<B> {
 
     pub fn load_program(&mut self, program: &[u8]) {
         let mut address = 0;
