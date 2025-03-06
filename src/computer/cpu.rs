@@ -5,7 +5,12 @@ use inline_colorization::*;
 use std::fmt;
 
 use super::clock::TickCount;
-use super::memory::{Bus, Memory};
+use super::memory::{Bus, bytes_to_address};
+
+// Standard memory locations to fetch addresses from
+const NMI_ADDRESS: u16 = 0xfffa;
+const RESET_ADDRESS: u16 = 0xfffc;
+const IRQ_ADDRESS: u16 = 0xfffe;
 
 /*
  * For much of the information used here, see
@@ -21,7 +26,8 @@ pub struct CPU<B: Bus> {
     x_index: u8,
     y_index: u8,
 
-    // stack_pointer: u16,
+    // Stack is on page 1, $0100 - $01ff, runs high -> low
+    stack_pointer: u8,
     program_counter: u16,
     status: Status,
 }
@@ -40,47 +46,85 @@ struct Status {
     carry: bool
 }
 
-impl CPU<Memory> {
-    pub fn new(memory: Memory) -> Self {
-        Self {
-            bus: memory,
+impl<B: Bus> CPU<B> {
+    pub fn new(bus: B, rom: &[u8]) -> Self {
+
+         let mut new_cpu = Self {
+            bus: bus,
             accumulator: 0,
             x_index: 0,
             y_index: 0,
-            // TODO This is probably not right
+
+            stack_pointer: 0xfd,
+
+            // program_counter: reset_address,
             program_counter: 0,
             status: Status::default(),
+        };
+
+        // Load the rom and execute the reset vector
+        new_cpu.load_rom(rom);
+
+        // FIXME this duplicates computer.run() a bit
+        // Execute whatever instructions the ROM wants executing
+        loop {
+            match new_cpu.fetch_and_execute() {
+                Some(_) => {},
+                None => break,
+            }
         }
+ 
+
+        return new_cpu
     }
 }
-
 
 // Formatting/Display functions
 impl<B: Bus> CPU<B> {
 
     pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        write!(b, "  A   X   Y")?;
-        write!(b, "\tN O {color_bright_black}- B{color_reset} D I Z C\n")?;
-        write!{b, "  {:02X}  {:02X}  {:02X}", self.accumulator, self.x_index, self.y_index}?;
-        write!(b, "\t{:1b}", u8::from(self.status.negative))?;
-        write!(b, " {:1b}", u8::from(self.status.overflow))?;
-        write!(b, "{color_bright_black}")?;
-        write!(b, " {:1b}", u8::from(self.status.ignored))?;
-        write!(b, " {:1b}", u8::from(self.status.brk))?;
-        write!(b, "{color_reset}")?;
-        write!(b, " {:1b}", u8::from(self.status.decimal))?;
-        write!(b, " {:1b}", u8::from(self.status.irq_disable))?;
-        write!(b, " {:1b}", u8::from(self.status.zero))?;
-        write!(b, " {:1b}", u8::from(self.status.carry))?;
+        write!(b, " A   X   Y")?;
+        write!(b, "\tN O {color_bright_black}- B{color_reset} D I Z C")?;
+        write!(b, "\t\tNMI  RST  IRQ")?;
+        write!(b, "\n")?;
+
+        // compute registers
+        write!{b, " {:02X}  {:02X}  {:02X}", 
+            self.accumulator, 
+            self.x_index, 
+            self.y_index}?;
+
+        // status register
+        write!(b, "\t{:1b} {:1b} {color_bright_black}{:1b} {:1b}{color_reset} {:1b} {:1b} {:1b} {:1b}", 
+            u8::from(self.status.negative),
+            u8::from(self.status.overflow),
+            u8::from(self.status.ignored),
+            u8::from(self.status.brk),
+            u8::from(self.status.decimal),
+            u8::from(self.status.irq_disable),
+            u8::from(self.status.zero),
+            u8::from(self.status.carry))?;
+
+        // vectors
+        write!(b, "\t\t{:04x} {:04x} {:04x}", 
+            self.bus.read_address(NMI_ADDRESS),
+            self.bus.read_address(RESET_ADDRESS),
+            self.bus.read_address(IRQ_ADDRESS))?;
+
         write!(b, "\n")?;
         Ok(())
     }
 
     pub fn show_program_memory<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        self.show_memory_state(b, self.program_counter)
+        self.show_memory(b, self.program_counter)
     }
 
-    pub fn show_memory_state<W: fmt::Write>(&self, b: &mut W, focal_address: u16) -> Result<(), fmt::Error> {
+    pub fn show_reset_memory<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
+        let reset_address = self.bus.read_address(RESET_ADDRESS);
+        self.show_memory(b, reset_address)
+    }
+
+    pub fn show_memory<W: fmt::Write>(&self, b: &mut W, focal_address: u16) -> Result<(), fmt::Error> {
         let start = if focal_address > 16 {
             ((focal_address - 16)/ 16) * 16
         } else {
@@ -90,7 +134,7 @@ impl<B: Bus> CPU<B> {
 
         for address in start .. end {
             if address % 16 == 0 {
-                write!(b, " {color_blue}0x{:04X}{color_reset}: ", address)?;
+                write!(b, " {color_bright_blue}0x{:04X}{color_reset}: ", address)?;
             }
             if address % 16 == 8 { write!(b, " ")?; }
             if address == focal_address { write!(b, "{color_red}")?; }
@@ -108,12 +152,25 @@ impl<B: Bus> CPU<B> {
 
 impl<B: Bus> CPU<B> {
 
-    pub fn load_program(&mut self, program: &[u8]) {
-        let mut address = 0;
-        for b in program {
-            self.bus.write_byte(address, *b);
-            address += 1;
-        }
+    // Load the given memory at the end of the address range
+    fn load_rom(&mut self, rom: &[u8]) {
+        assert!(rom.len() <= 0xffff);
+        let start_address: u16 = 0xffff - (rom.len() - 1) as u16;
+        debug!("Loading ROM at address {:04x}, length {:04x}", start_address, rom.len());
+        self.bus.write_bytes(start_address, rom);
+        self.program_counter = self.bus.read_address(RESET_ADDRESS);
+        debug!("Setting program counter to {:04x}", self.program_counter);
+    }
+
+    pub fn load_program(&mut self, address: u16, program: &[u8]) {
+        // TODO put in some better safeguards for a sensible address
+        assert!(address > 0x200 && address < 0xfdff);
+        //self.bus.write_bytes(0x0000, program);
+        debug!("Loading program at address {:04x}, length {:04x}", address, program.len());
+        self.bus.write_bytes(address, program);
+        self.program_counter = address;
+        debug!("Setting program counter to {:04x}", self.program_counter);
+
     }
 
     /* Run for one clock cycle */
@@ -146,7 +203,8 @@ impl<B: Bus> CPU<B> {
                 self.program_counter += 1 + operand_size;
 
                 // FIXME This is here to stop us from running too long. Need to fix
-                if self.program_counter > 10 {
+                if self.program_counter > NMI_ADDRESS {
+                    error!("Program counter reached {:04X}, halting", self.program_counter);
                     return None;
                 }
 
@@ -196,8 +254,8 @@ impl<B: Bus> CPU<B> {
             // FIXME All of the below need to still be implemented
             AddressMode::Relative    => Operand::Implied,
             AddressMode::Zeropage    => Operand::Address(bytes_to_address(bytes[0], 0)),
-            AddressMode::ZeropageX   => Operand::Implied,
-            AddressMode::ZeropageY   => Operand::Implied,
+            AddressMode::ZeropageX   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.x_index.into())),
+            AddressMode::ZeropageY   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.y_index.into())),
         }
     }
 
@@ -242,7 +300,14 @@ impl<B: Bus> CPU<B> {
             Instruction::INC => todo!(),
             Instruction::INX => todo!(),
             Instruction::INY => todo!(),
-            Instruction::JMP => todo!(),
+            Instruction::JMP => {
+                match operand {
+                    Operand::Address(address) => {
+                        self.program_counter = address;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::JSR => todo!(),
             Instruction::LDA => {
                 match operand {
@@ -256,8 +321,30 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::LDX => todo!(),
-            Instruction::LDY => todo!(),
+            Instruction::LDX => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.x_index = value;
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.x_index = value;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::LDY => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.y_index = value;
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.y_index = value;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::LSR => todo!(),
             Instruction::NOP => todo!(),
             Instruction::ORA => todo!(),
@@ -281,14 +368,28 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::STX => todo!(),
-            Instruction::STY => todo!(),
-            Instruction::TAX => todo!(),
-            Instruction::TAY => todo!(),
-            Instruction::TSX => todo!(),
-            Instruction::TXA => todo!(),
-            Instruction::TXS => todo!(),
-            Instruction::TYA => todo!(),
+            Instruction::STX => {
+                match operand {
+                    Operand::Address(address) => {
+                        self.bus.write_byte(address, self.x_index);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::STY => {
+                match operand {
+                    Operand::Address(address) => {
+                        self.bus.write_byte(address, self.y_index);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::TAX => { self.x_index = self.accumulator; },
+            Instruction::TAY => { self.y_index = self.accumulator; },
+            Instruction::TSX => { self.x_index = self.stack_pointer; },
+            Instruction::TXA => { self.accumulator = self.x_index; },
+            Instruction::TXS => { self.stack_pointer = self.x_index; },
+            Instruction::TYA => { self.accumulator = self.y_index; },
         }
     }
 
@@ -338,11 +439,6 @@ enum Operand {
     Immediate(u8),
     Address(u16),
     Relative(u16),
-}
-
-// first byte is low, second high
-fn bytes_to_address(lo: u8, hi: u8) -> u16 {
-    u16::from(lo) + (u16::from(hi) << 8)
 }
 
 impl AddressMode {
@@ -706,35 +802,84 @@ enum Instruction {
 
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
+    use crate::computer::memory::Memory;
     use super::*;
 
+    pub const TEST_ROM: &'static[u8] = 
+        &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
+           0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x00, 0x00 ];
+    
+    fn test_rom_start() -> u16 {
+        0xffff - (TEST_ROM.len() - 1) as u16
+    }
+
+    fn test_rom_end_of_execution () -> u16 {
+        // find the first 0x00
+        let offset = TEST_ROM.iter().position(|&b| b == 0x00).unwrap() as u16;
+        test_rom_start() + offset as u16
+    }
+
     #[test]
+    fn verify_test_rom() {
+        let cpu = CPU::new(Memory::new(), TEST_ROM);
+        let start_address: u16 = test_rom_start();
+        let reset_vector = cpu.bus.read_address(RESET_ADDRESS);
+        assert_eq!(reset_vector, start_address);
+
+        // XXX Everything after this may need to change when the TEST_ROM changes
+
+        // ensure we start with LDX $ff, TXS
+        assert_eq!(cpu.bus.read_byte(start_address), 0xa2);
+        assert_eq!(cpu.bus.read_byte(start_address + 1), 0xff);
+        assert_eq!(cpu.bus.read_byte(start_address + 2), 0x9a);
+
+        // ensure we know when it stops
+        let end = test_rom_end_of_execution();
+        assert_eq!(end, start_address + 3);
+        assert_eq!(cpu.bus.read_byte(end), 0x00);
+    }
+
+    #[test_log::test]
     fn creation() {
-        let cpu = CPU::new(Memory::new(10));
-        assert_eq!(cpu.program_counter, 0x0);
+        let cpu = CPU::new(Memory::new(), TEST_ROM);
+
+        assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start());
+        assert_eq!(cpu.program_counter, test_rom_end_of_execution());
+        assert_eq!(cpu.stack_pointer, 0xff);
         assert_eq!(cpu.accumulator, 0x0);
-        assert_eq!(cpu.x_index, 0x0);
+        // set by TEST_ROM
+        assert_eq!(cpu.x_index, 0xff);
         assert_eq!(cpu.y_index, 0x0);
-        
     }
 
     #[test]
     fn load_program() {
-        let program = vec![0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
-        let mut cpu = CPU::new(Memory::new(100));
+        let program = [0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
+        let mut cpu = CPU::new(Memory::new(), TEST_ROM);
 
-        cpu.load_program(&program);
+        // pretend we loaded a ROM with this vector
+        let load_address = 0xc000;
+        // set_reset_address(&mut cpu.bus, load_address);
+
+        cpu.load_program(load_address, &program);
 
         for i in 0..program.len() {
-            let data = cpu.bus.read_byte(i as u16);
+            let data = cpu.bus.read_byte(load_address + i as u16);
             assert_eq!(program[i], data);
         }
     }
 
     #[test]
-    fn bytes_to_address_test() {
-        let address = bytes_to_address(0x30, 0x10);
-        assert_eq!(address, 0x1030);
+    fn load_rom() {
+        let rom = [0x10, 0x20, 0x30, 0x40];
+        let mut cpu = CPU::new(Memory::new(), TEST_ROM);
+
+        cpu.load_rom(&rom);
+
+        assert_eq!(cpu.bus.read_byte(0xffff), 0x40);
+        assert_eq!(cpu.bus.read_byte(0xfffe), 0x30);
+        assert_eq!(cpu.bus.read_byte(0xfffd), 0x20);
+        assert_eq!(cpu.bus.read_byte(0xfffc), 0x10);
     }
 }

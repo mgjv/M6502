@@ -1,2 +1,4 @@
 *.o
 *.rom
+*.rom.map
+*.program

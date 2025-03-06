@@ -6,6 +6,7 @@
 reset:
     LDX #$ff
     TXS
+    BRK
 
 nmi:
     BRK

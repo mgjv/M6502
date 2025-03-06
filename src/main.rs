@@ -1,25 +1,58 @@
 mod computer;
 
+use std::path::PathBuf;
+
 use computer::Computer;
+use clap::Parser;
+
+#[derive(Parser)]
+struct Cli {
+    // Name of the ROM to load. Mandatory argument
+    rom_file: PathBuf,
+
+    program_file: PathBuf,
+
+    // Sets a custom map file for the ROM. Otherwise it will be derived from the ROM name
+    #[arg(short, long("map"), value_name = "ROM MAP FILE")]
+    rom_map: Option<PathBuf>,
+}
+
+fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
+    let mut p = p.into_os_string();
+    p.push(s);
+    p.into()
+}
 
 fn main() {
     env_logger::init();
 
-    let program_name = std::env::args().nth(1).expect("Need a program name to run");
-    let program = std::fs::read(program_name).expect("Was not able to load program");
+    let cli = Cli::parse();
+    let map = cli.rom_map.unwrap_or_else(|| append_to_path(cli.rom_file.clone(), ".map"));
 
-    let mut computer = Computer::new();
+    println!("Map: {}", map.display());
+
+    let rom_data = read_bytes_from_file(cli.rom_file);
+    let mut computer = Computer::new(&rom_data);
     show_debug(&computer.startup_message());
 
-    computer.load_program(&program);
+    show_debug(&computer.show_state());
+
+    let program = read_bytes_from_file(cli.program_file);
+    computer.load_program(0x1000, &program);
 
     // dbg!(&computer);
     show_debug(&computer.show_state());
 
     computer.run();
 
-    // dbg!(&computer);
     show_debug(&computer.show_state());
+}
+
+fn read_bytes_from_file(file: PathBuf) -> Vec<u8> {
+    let file_name = file.as_path();
+    std::fs::read(file_name).expect(
+        format!("Was not able to load program from {}", file_name.display()).as_str()
+    )
 }
 
 use log;
@@ -27,5 +60,17 @@ use log;
 fn show_debug(s: &str) {
     if log::max_level() >= log::LevelFilter::Debug {
         print!("{}\n", s);
+    }
+}
+
+
+#[cfg(test)] 
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
     }
 }
