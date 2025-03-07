@@ -9,10 +9,24 @@ reset:
     BRK
 
 nmi:
-    BRK
-
+    NOP   
 irq:
-    BRK
+    ; Save the state of the registers
+    PHA
+    TXA
+    PHA
+    TYA
+    PHA
+
+    ; restore the state of the registers
+    PLA
+    TAY
+    PLA
+    TAX
+    PLA
+
+    ; return
+    RTI 
 
     .segment "VECTORS"
 

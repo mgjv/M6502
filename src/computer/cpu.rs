@@ -41,7 +41,7 @@ struct Status {
     #[default = true] // always appears to be set
     ignored: bool,
     #[default = true] // always appears to be set after reset
-    brk: bool,  // TODO Hardware interrupts need to set this to false
+    brk: bool, // TODO Hardware interrupts need to set this to false
     decimal: bool,
     irq_disable: bool,
     zero: bool,
@@ -214,7 +214,7 @@ impl<B: Bus> CPU<B> {
         match decode_instruction(opcode) {
             // If we get a BRK, we halt execution
             Some((Instruction::BRK, _, _)) => {
-                self.execute(Instruction::BRK, Operand::Implied);
+                self.execute_instruction(Instruction::BRK, Operand::Implied);
                 None
             }
             // Any other valid instruction, we process
@@ -228,7 +228,7 @@ impl<B: Bus> CPU<B> {
                 debug!("opcode {:02x} -> {:x?}/{:x?}/{:x?} -> {:x?} {:x?}", opcode, instruction, address_mode, operand_bytes, instruction, operand);
 
                 // update the state of memory and CPU
-                self.execute(instruction, operand);
+                self.execute_instruction(instruction, operand);
 
                 // Advance the program counter by the correct number of bytes
                 self.program_counter += 1 + operand_size;
@@ -263,7 +263,6 @@ impl<B: Bus> CPU<B> {
             AddressMode::AbsoluteY   => Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into())),
             AddressMode::Immediate   => Operand::Immediate(bytes[0]),
             AddressMode::Implied     => Operand::Implied,
-            // FIXME TRIPLE check the ones with addresses. Byte order for addresses and logic
             AddressMode::Indirect    => {
                 let address = bytes_to_address(bytes[0], bytes[1]);
                 let bytes = self.bus.read_two_bytes(address);
@@ -293,7 +292,7 @@ impl<B: Bus> CPU<B> {
         }
     }
 
-    fn execute(&mut self, instruction: Instruction, operand: Operand) {
+    fn execute_instruction(&mut self, instruction: Instruction, operand: Operand) {
 
         match instruction {
             Instruction::ADC => {
@@ -425,7 +424,7 @@ impl<B: Bus> CPU<B> {
             },
             Instruction::ROL => todo!(),
             Instruction::ROR => todo!(),
-            Instruction::RTI => todo!(),
+            Instruction::RTI => { self.return_from_interrupt(); },
             Instruction::RTS => todo!(),
             Instruction::SBC => {
                 match operand {
@@ -474,6 +473,36 @@ impl<B: Bus> CPU<B> {
             Instruction::TYA => { self.accumulator = self.y_index; },
         }
     }
+
+    pub fn execute_nmi(&mut self) {
+        self.prepare_for_interrupt();
+        self.program_counter = self.bus.read_address(NMI_ADDRESS);
+    }
+
+    pub fn execute_irq(&mut self) {
+        if self.status.irq_disable {
+            return;
+        }
+        self.prepare_for_interrupt();
+        self.program_counter = self.bus.read_address(IRQ_ADDRESS);
+    }
+
+    fn prepare_for_interrupt(&mut self) {
+        let address_bytes = address_to_bytes(self.program_counter);
+        self.push_stack(address_bytes[1]); // high byte
+        self.push_stack(address_bytes[0]); // low byte
+        self.push_stack(self.status.as_byte());
+        self.status.brk = false;
+    }
+
+    fn return_from_interrupt(&mut self) {
+        let status = self.pull_stack();
+        let low = self.pull_stack();
+        let high = self.pull_stack();
+        self.program_counter = bytes_to_address(high, low);
+        self.status = Status::from_byte(status);
+    }
+
 
     fn push_stack(&mut self, value: u8) {
         let address = bytes_to_address(self.stack_pointer, 0x01);
