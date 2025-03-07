@@ -4,6 +4,8 @@ use inline_colorization::*;
 
 use std::fmt;
 
+use crate::computer::memory::address_to_bytes;
+
 use super::clock::TickCount;
 use super::memory::{Bus, bytes_to_address};
 
@@ -20,7 +22,7 @@ const IRQ_ADDRESS: u16 = 0xfffe;
 // The CPU
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct CPU<B: Bus> {
-    bus: B,
+    pub bus: B,
 
     accumulator: u8,
     x_index: u8,
@@ -39,11 +41,39 @@ struct Status {
     #[default = true] // always appears to be set
     ignored: bool,
     #[default = true] // always appears to be set after reset
-    brk: bool,
+    brk: bool,  // TODO Hardware interrupts need to set this to false
     decimal: bool,
     irq_disable: bool,
     zero: bool,
     carry: bool
+}
+
+impl Status {
+    fn as_byte(&self) -> u8 {
+        let mut byte: u8 = 0;
+        byte |= u8::from(self.negative) << 7;
+        byte |= u8::from(self.overflow) << 6;
+        byte |= u8::from(self.ignored) << 5;
+        byte |= u8::from(self.brk) << 4;
+        byte |= u8::from(self.decimal) << 3;
+        byte |= u8::from(self.irq_disable) << 2;
+        byte |= u8::from(self.zero) << 1;
+        byte |= u8::from(self.carry);
+        byte
+    }
+
+    fn from_byte(byte: u8) -> Self {
+        Self {
+            negative: (byte & 0b1000_0000) != 0,
+            overflow: (byte & 0b0100_0000) != 0,
+            ignored: (byte & 0b0010_0000) != 0,
+            brk: (byte & 0b0001_0000) != 0,
+            decimal: (byte & 0b0000_1000) != 0,
+            irq_disable: (byte & 0b0000_0100) != 0,
+            zero: (byte & 0b0000_0010) != 0,
+            carry: (byte & 0b0000_0001) != 0,
+        }
+    }
 }
 
 impl<B: Bus> CPU<B> {
@@ -184,6 +214,7 @@ impl<B: Bus> CPU<B> {
         match decode_instruction(opcode) {
             // If we get a BRK, we halt execution
             Some((Instruction::BRK, _, _)) => {
+                self.execute(Instruction::BRK, Operand::Implied);
                 None
             }
             // Any other valid instruction, we process
@@ -232,7 +263,7 @@ impl<B: Bus> CPU<B> {
             AddressMode::AbsoluteY   => Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into())),
             AddressMode::Immediate   => Operand::Immediate(bytes[0]),
             AddressMode::Implied     => Operand::Implied,
-            // FIXME TRIPLE check the next three. Byte order for addresses and logic
+            // FIXME TRIPLE check the ones with addresses. Byte order for addresses and logic
             AddressMode::Indirect    => {
                 let address = bytes_to_address(bytes[0], bytes[1]);
                 let bytes = self.bus.read_two_bytes(address);
@@ -240,7 +271,6 @@ impl<B: Bus> CPU<B> {
             },
             AddressMode::IndirectX   => {
                 // Add X to zero page address stored in bytes[0]. Return address stored there
-                // TODO If bytes[0] is 0xfe, this is probably not right, as it will read past the zero page
                 let address = bytes_to_address(0, bytes[0].wrapping_add(self.x_index));
                 let bytes = self.bus.read_two_bytes(address);
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]))
@@ -251,8 +281,12 @@ impl<B: Bus> CPU<B> {
                 let bytes = self.bus.read_two_bytes(address);
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into()))
             },
-            // FIXME All of the below need to still be implemented
-            AddressMode::Relative    => Operand::Implied,
+            AddressMode::Relative    => {
+                let offset = bytes[0];
+                let address = self.program_counter.wrapping_add(offset as u16);
+                Operand::Address(address)
+
+            },
             AddressMode::Zeropage    => Operand::Address(bytes_to_address(bytes[0], 0)),
             AddressMode::ZeropageX   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.x_index.into())),
             AddressMode::ZeropageY   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.y_index.into())),
@@ -274,8 +308,33 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::AND => todo!(),
-            Instruction::ASL => todo!(),
+            Instruction::AND => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.accumulator &= value;
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.accumulator &= value;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::ASL => {
+                match operand {
+                    Operand::Implied => {
+                        self.status.carry = self.accumulator & 0x80 != 0;
+                        self.accumulator <<= 1;
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.status.carry = value & 0x80 != 0;
+                        let new_value = value << 1;
+                        self.bus.write_byte(address, new_value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::BCC => todo!(),
             Instruction::BCS => todo!(),
             Instruction::BEQ => todo!(),
@@ -283,7 +342,12 @@ impl<B: Bus> CPU<B> {
             Instruction::BMI => todo!(),
             Instruction::BNE => todo!(),
             Instruction::BPL => todo!(),
-            Instruction::BRK => todo!(),
+            Instruction::BRK => {
+                let bytes = address_to_bytes(self.program_counter.wrapping_add(2));
+                self.push_stack(bytes[0]);
+                self.status.brk = true;
+                todo!()
+            },
             Instruction::BVC => todo!(),
             Instruction::BVS => todo!(),
             Instruction::CLC => { self.status.carry = false; },
@@ -348,15 +412,33 @@ impl<B: Bus> CPU<B> {
             Instruction::LSR => todo!(),
             Instruction::NOP => todo!(),
             Instruction::ORA => todo!(),
-            Instruction::PHA => todo!(),
-            Instruction::PHP => todo!(),
-            Instruction::PLA => todo!(),
-            Instruction::PLP => todo!(),
+            Instruction::PHA => { self.push_stack(self.accumulator); },
+            Instruction::PHP => { 
+                let mut status = self.status;
+                status.brk = true;
+                self.push_stack(status.as_byte());
+            },
+            Instruction::PLA => { self.accumulator = self.pull_stack(); },
+            Instruction::PLP => { 
+                let value = self.pull_stack();
+                self.status = Status::from_byte(value);
+            },
             Instruction::ROL => todo!(),
             Instruction::ROR => todo!(),
             Instruction::RTI => todo!(),
             Instruction::RTS => todo!(),
-            Instruction::SBC => todo!(),
+            Instruction::SBC => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.execute_sbc(value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.execute_sbc(value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::SEC => { self.status.carry = true; },
             Instruction::SED => { self.status.decimal = true; },
             Instruction::SEI => { self.status.irq_disable = true; },
@@ -393,6 +475,19 @@ impl<B: Bus> CPU<B> {
         }
     }
 
+    fn push_stack(&mut self, value: u8) {
+        let address = bytes_to_address(self.stack_pointer, 0x01);
+        self.bus.write_byte(address, value);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+    }
+
+    fn pull_stack(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        let address = bytes_to_address(self.stack_pointer, 0x01);
+        self.bus.read_byte(address)
+    }
+
+    // FIXME Implement decimal mode
     fn execute_adc(&mut self, value: u8) {
         let a = self.accumulator;
         let c = u8::from(self.status.carry); // either 0 or 1
@@ -406,6 +501,11 @@ impl<B: Bus> CPU<B> {
                     || (a < 0x80 && value < 0x80 && new_a > 0x7f);
 
         self.accumulator = new_a;
+    }
+
+    // FIXME Implement decimal mode, and fix flags?
+    fn execute_sbc(&mut self, value: u8) {
+        self.execute_adc(!value)
     }
 
 }
@@ -438,7 +538,6 @@ enum Operand {
     Implied,
     Immediate(u8),
     Address(u16),
-    Relative(u16),
 }
 
 impl AddressMode {
@@ -818,6 +917,13 @@ pub mod tests {
         // find the first 0x00
         let offset = TEST_ROM.iter().position(|&b| b == 0x00).unwrap() as u16;
         test_rom_start() + offset as u16
+    }
+
+    // Add some methods to be used in integration tests in computer
+    impl <B: Bus> CPU<B> {
+        fn get_bus(&self) -> &B {
+            &self.bus
+        }
     }
 
     #[test]

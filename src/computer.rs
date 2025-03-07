@@ -80,7 +80,6 @@ impl<C: Clock> Computer<C> {
 mod tests {
     use super::*;
 
-    // FIXME This requires the tests module to be public. Not great.
     use cpu::tests::TEST_ROM;
 
     #[test]
