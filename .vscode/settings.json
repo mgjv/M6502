@@ -1,5 +1,9 @@
 {
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
-    ]
+    ],
+    "C_Cpp.autoAddFileAssociations": false,
+    "files.associations": {
+        "*.s.h": "ca65"
+    }
 }
