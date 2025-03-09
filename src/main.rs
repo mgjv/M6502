@@ -51,7 +51,7 @@ fn main() {
 fn read_bytes_from_file(file: PathBuf) -> Vec<u8> {
     let file_name = file.as_path();
     std::fs::read(file_name).expect(
-        format!("Was not able to load program from {}", file_name.display()).as_str()
+        format!("Was not able to load bytes from {}", file_name.display()).as_str()
     )
 }
 

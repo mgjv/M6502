@@ -70,6 +70,8 @@ impl<C: Clock> Computer<C> {
         self.cpu.show_program_memory(&mut b);
         writeln!(b, "Reset memory:");
         self.cpu.show_reset_memory(&mut b);
+        writeln!(b, "Stack:");
+        self.cpu.show_stack(&mut b);
 
         return b
     }
@@ -78,22 +80,45 @@ impl<C: Clock> Computer<C> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
+    use crate::computer::memory::address_to_bytes;
+
     use super::*;
 
-    use cpu::tests::TEST_ROM;
+    fn setup() -> Computer<NormalClock> {
+        let rom_file_name = Path::new("assembly/basic.rom");
+        let rom = std::fs::read(rom_file_name).expect(
+            format!("Was not able to load rom from {}", rom_file_name.display()).as_str()
+        );
+        Computer::new(&rom)
+    }
+
+    fn read_program(file_name: &str) -> Vec<u8> {
+        let program_file_name = Path::new(file_name);
+        std::fs::read(program_file_name).expect(
+            format!("Was not able to load program from {}", program_file_name.display()).as_str()
+        )
+    }
 
     #[test]
     fn construction() {
-        let computer = Computer {
-            cpu: CPU::new(Memory::new(), TEST_ROM),
-            clock: NormalClock::new(1_000),
-        };
+        let computer = setup();
         print!("{}", computer.startup_message());
-
-        let computer = Computer {
-            cpu: CPU::new(Memory::new(), TEST_ROM),
-            clock: NormalClock::new(1_000),
-        };
-        print!("{}", computer.startup_message());
+    }
+    
+    #[test_log::test]
+    fn run_simple_program() {
+        let mut computer = setup();
+        let program = read_program("assembly/simple_add.program");
+        let start_address = 0x1000;
+        computer.load_program(start_address, &program);
+        computer.run();
+        // print!("{}", computer.show_state());
+        // This is where we think the program counter should have been before the BRK
+        let pcb = address_to_bytes(start_address + 1 + program.len() as u16);
+        // Low and High bytes at stack positions 2 and 3
+        assert_eq!(computer.cpu.stack_byte(2), pcb[0]);
+        assert_eq!(computer.cpu.stack_byte(3), pcb[1]);
     }
 }

@@ -154,6 +154,11 @@ impl<B: Bus> CPU<B> {
         self.show_memory(b, reset_address)
     }
 
+    pub fn show_stack<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
+        let stack_address = bytes_to_address(self.stack_pointer, 0x01);
+        self.show_memory(b, stack_address)
+    }
+
     pub fn show_memory<W: fmt::Write>(&self, b: &mut W, focal_address: u16) -> Result<(), fmt::Error> {
         let start = if focal_address > 16 {
             ((focal_address - 16)/ 16) * 16
@@ -211,9 +216,12 @@ impl<B: Bus> CPU<B> {
         // Identify the operator
         // debug!("opcode {:02X} ", opcode);
 
+        // TODO We should get the number of cycles from execute_instruction(), not a static table.
+
         match decode_instruction(opcode) {
             // If we get a BRK, we halt execution
             Some((Instruction::BRK, _, _)) => {
+                debug!("{:04x}: opcode {:02x} -> BRK/Implied", self.program_counter, opcode);
                 self.execute_instruction(Instruction::BRK, Operand::Implied);
                 None
             }
@@ -225,7 +233,7 @@ impl<B: Bus> CPU<B> {
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
 
-                debug!("opcode {:02x} -> {:x?}/{:x?}/{:x?} -> {:x?} {:x?}", opcode, instruction, address_mode, operand_bytes, instruction, operand);
+                debug!("{:04x}: opcode {:02x} -> {:x?}/{:x?}/{:x?} -> {:x?} {:x?}", self.program_counter, opcode, instruction, address_mode, operand_bytes, instruction, operand);
 
                 // update the state of memory and CPU
                 self.execute_instruction(instruction, operand);
@@ -245,7 +253,7 @@ impl<B: Bus> CPU<B> {
             // Hmm, this is not  valid instruction. Wonder what happened
             None => {
                 // This shouldn't happen
-                error!("Unused opcode {:02X} found at address {:04X}", opcode, self.program_counter);
+                error!("{:04x}: Unused opcode {:02x} found", self.program_counter, opcode);
                 None
             }
         }
@@ -341,12 +349,7 @@ impl<B: Bus> CPU<B> {
             Instruction::BMI => todo!(),
             Instruction::BNE => todo!(),
             Instruction::BPL => todo!(),
-            Instruction::BRK => {
-                let bytes = address_to_bytes(self.program_counter.wrapping_add(2));
-                self.push_stack(bytes[0]);
-                self.status.brk = true;
-                todo!()
-            },
+            Instruction::BRK => { self.execute_brk(); },
             Instruction::BVC => todo!(),
             Instruction::BVS => todo!(),
             Instruction::CLC => { self.status.carry = false; },
@@ -409,7 +412,7 @@ impl<B: Bus> CPU<B> {
                 }
             },
             Instruction::LSR => todo!(),
-            Instruction::NOP => todo!(),
+            Instruction::NOP => { },
             Instruction::ORA => todo!(),
             Instruction::PHA => { self.push_stack(self.accumulator); },
             Instruction::PHP => { 
@@ -471,23 +474,44 @@ impl<B: Bus> CPU<B> {
             Instruction::TXA => { self.accumulator = self.x_index; },
             Instruction::TXS => { self.stack_pointer = self.x_index; },
             Instruction::TYA => { self.accumulator = self.y_index; },
+            #[cfg(test)]
+            Instruction::VRFYTST => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.verify_test(value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
         }
     }
 
-    pub fn execute_nmi(&mut self) {
-        self.prepare_for_interrupt();
+    fn execute_brk(&mut self) {
+        let bytes = address_to_bytes(self.program_counter.wrapping_add(2));
+        self.push_stack(bytes[1]);
+        self.push_stack(bytes[0]);
+        self.push_stack(self.status.as_byte());
+        self.status.brk = true;
         self.program_counter = self.bus.read_address(NMI_ADDRESS);
     }
 
+    #[allow(dead_code)]
+    pub fn execute_nmi(&mut self) {
+        self.prepare_for_hardware_interrupt();
+        self.program_counter = self.bus.read_address(NMI_ADDRESS);
+    }
+
+    #[allow(dead_code)]
     pub fn execute_irq(&mut self) {
         if self.status.irq_disable {
             return;
         }
-        self.prepare_for_interrupt();
+        self.prepare_for_hardware_interrupt();
         self.program_counter = self.bus.read_address(IRQ_ADDRESS);
     }
 
-    fn prepare_for_interrupt(&mut self) {
+    #[allow(dead_code)]
+    fn prepare_for_hardware_interrupt(&mut self) {
         let address_bytes = address_to_bytes(self.program_counter);
         self.push_stack(address_bytes[1]); // high byte
         self.push_stack(address_bytes[0]); // low byte
@@ -501,6 +525,8 @@ impl<B: Bus> CPU<B> {
         let high = self.pull_stack();
         self.program_counter = bytes_to_address(high, low);
         self.status = Status::from_byte(status);
+        // Ensure brk is always false after a hardware restore
+        self.status.brk = false;
     }
 
 
@@ -608,7 +634,10 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
         0x0c => None,
         0x0d => Some((Instruction::ORA, AddressMode::Absolute, 4)),
         0x0e => Some((Instruction::ASL, AddressMode::Absolute, 6)),
+        #[cfg(not(test))]
         0x0f => None,
+        #[cfg(test)]
+        0x0f => Some((Instruction::VRFYTST, AddressMode::Immediate, 0)),
 
         0x10 => Some((Instruction::BPL, AddressMode::Relative, 2)),
         0x11 => Some((Instruction::ORA, AddressMode::IndirectY, 5)),
@@ -926,6 +955,8 @@ enum Instruction {
     TXA, // transfer X to accumulator
     TXS, // transfer X to stack pointer
     TYA, // transfer Y to accumulator
+    #[cfg(test)]
+    VRFYTST, // Used to verify CPU status during tests only
 }
 
 
@@ -933,6 +964,7 @@ enum Instruction {
 pub mod tests {
     use crate::computer::memory::Memory;
     use super::*;
+    use log::info;
 
     pub const TEST_ROM: &'static[u8] = 
         &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -950,8 +982,36 @@ pub mod tests {
 
     // Add some methods to be used in integration tests in computer
     impl <B: Bus> CPU<B> {
-        fn get_bus(&self) -> &B {
-            &self.bus
+        // This is called by the pseudo instruction VRFTST
+        pub fn verify_test(&self, value: u8) {
+            info!("Verifying test with value {}", value);
+            assert_eq!(self.accumulator, value);
+        }
+
+        // Last pushed value is at position 1.
+        pub fn stack_byte(&self, position: u8) -> u8 {
+            let address = bytes_to_address(self.stack_pointer + position, 0x01);
+            self.bus.read_byte(address)
+        }
+
+        // TODO assertions for status register, stack content and memory content
+
+        #[allow(unused_must_use)]
+        #[allow(dead_code)]
+        fn debug_show(&self) -> String {
+            let mut b = String::new();
+    
+            // Let's show the program, memory
+            // writeln!(b, "Registers:\tStatus:");
+            // self.show_registers(&mut b);
+            // writeln!(b, "Program memory (PC location in red):");
+            self.show_program_memory(&mut b);
+            // writeln!(b, "Reset memory:");
+            // self.show_reset_memory(&mut b);
+            // writeln!(b, "Stack:");
+            // self.show_stack(&mut b);
+    
+            b
         }
     }
 
@@ -980,8 +1040,11 @@ pub mod tests {
         let cpu = CPU::new(Memory::new(), TEST_ROM);
 
         assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start());
-        assert_eq!(cpu.program_counter, test_rom_end_of_execution());
-        assert_eq!(cpu.stack_pointer, 0xff);
+
+        // FIXME This expectation is incorrect, since BRK changes PC
+        // FIXME Fix this when VerifyTest is propewrly implemented
+        // assert_eq!(cpu.program_counter, test_rom_end_of_execution());
+        // assert_eq!(cpu.stack_pointer, 0xff);
         assert_eq!(cpu.accumulator, 0x0);
         // set by TEST_ROM
         assert_eq!(cpu.x_index, 0xff);

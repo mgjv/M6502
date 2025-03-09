@@ -4,8 +4,18 @@
     .segment "OS"
 
 reset:
+    ; Set the stack pointer
     LDX #$ff
     TXS
+    ; Make sure some flags are in a known state
+    CLD
+    CLC
+    CLV
+    ; Set the registers to zero
+    LDY #$00
+    LDX #$00
+    LDA #$00
+
     BRK
 
 nmi:
