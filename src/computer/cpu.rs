@@ -475,10 +475,10 @@ impl<B: Bus> CPU<B> {
             Instruction::TXS => { self.stack_pointer = self.x_index; },
             Instruction::TYA => { self.accumulator = self.y_index; },
             #[cfg(test)]
-            Instruction::VRFYTST => {
+            Instruction::VerifyTest => {
                 match operand {
-                    Operand::Immediate(value) => {
-                        self.verify_test(value);
+                    Operand::Address(address) => {
+                        self.verify_test(address);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -637,7 +637,7 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
         #[cfg(not(test))]
         0x0f => None,
         #[cfg(test)]
-        0x0f => Some((Instruction::VRFYTST, AddressMode::Immediate, 0)),
+        0x0f => Some((Instruction::VerifyTest, AddressMode::Absolute, 0)),
 
         0x10 => Some((Instruction::BPL, AddressMode::Relative, 2)),
         0x11 => Some((Instruction::ORA, AddressMode::IndirectY, 5)),
@@ -956,7 +956,7 @@ enum Instruction {
     TXS, // transfer X to stack pointer
     TYA, // transfer Y to accumulator
     #[cfg(test)]
-    VRFYTST, // Used to verify CPU status during tests only
+    VerifyTest, // Used to verify CPU status during tests only
 }
 
 
@@ -980,12 +980,119 @@ pub mod tests {
         test_rom_start() + offset as u16
     }
 
+    #[derive(Debug)]
+    enum TestOp {
+        TestEnd,
+
+        TestA,
+        TestX,
+        TestY,
+        TestSP,
+
+        TestCarrySet,
+        TestCarryClear,
+        TestZeroSet,
+        TestZeroClear,
+        TestNegativeSet,
+        TestNegativeClear,
+        TestOverflowSet,
+        TestOverflowClear,
+
+        TestAddressContents,
+    }
+
+    impl TryFrom<u8> for TestOp {
+        type Error = ();
+
+        fn try_from(value: u8) -> Result<Self, Self::Error> {
+            match value {
+                0x00 => Ok(TestOp::TestEnd),
+                0x01 => Ok(TestOp::TestA),
+                0x02 => Ok(TestOp::TestX),
+                0x03 => Ok(TestOp::TestY),
+                0x08 => Ok(TestOp::TestSP),
+                0x30 => Ok(TestOp::TestCarrySet),
+                0x31 => Ok(TestOp::TestCarryClear),
+                0x32 => Ok(TestOp::TestZeroSet),
+                0x33 => Ok(TestOp::TestZeroClear),
+                0x34 => Ok(TestOp::TestNegativeSet),
+                0x35 => Ok(TestOp::TestNegativeClear),
+                0x36 => Ok(TestOp::TestOverflowSet),
+                0x37 => Ok(TestOp::TestOverflowClear),
+                0x80 => Ok(TestOp::TestAddressContents),
+                _ => Err(()),
+            }
+        }
+    }
+
     // Add some methods to be used in integration tests in computer
     impl <B: Bus> CPU<B> {
         // This is called by the pseudo instruction VRFTST
-        pub fn verify_test(&self, value: u8) {
-            info!("Verifying test with value {}", value);
-            assert_eq!(self.accumulator, value);
+        // The test parameters start at the given address
+        pub fn verify_test(&self, start_address: u16) {
+
+            assert!(self.bus.read_byte(start_address) == 0xff, 
+                "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
+            let test_id = self.bus.read_byte(start_address + 1);
+
+            info!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
+
+            let mut address = start_address + 2;
+            let mut op_num = 1;
+            loop {
+                let test_op_code = self.bus.read_byte(address);
+                let test_op = TestOp::try_from(test_op_code).expect(
+                    &format!("Invalid test operation {:02x} at address {:04x}", test_op_code, address)
+                );
+                debug!("Test operation: {:?}/{:02x}", test_op, self.bus.read_byte(address + 1));
+                match test_op {
+                    TestOp::TestEnd => break,
+                    TestOp::TestA => {
+                        address += 1;
+                        // assert_eq!(self.accumulator, self.bus.read_byte(address));
+                        assert!(self.accumulator == self.bus.read_byte(address),
+                            "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            test_id, op_num, self.accumulator, self.bus.read_byte(address));
+                    },
+                    TestOp::TestX  => { 
+                        address += 1;
+                        assert!(self.x_index == self.bus.read_byte(address), 
+                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Index:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            test_id, op_num,  self.x_index, self.bus.read_byte(address));   
+                    },
+                    TestOp::TestY  => { 
+                        address += 1;
+                        assert!(self.y_index == self.bus.read_byte(address), 
+                            "({:02x}:{:02x}) Assertion failed on Y Index: \nY Index:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            test_id, op_num,  self.y_index, self.bus.read_byte(address));
+                    },
+                    TestOp::TestSP  => { 
+                        address += 1;
+                        assert!(self.stack_pointer == self.bus.read_byte(address),     
+                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nStack Pointer:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
+                    },
+                    TestOp::TestCarrySet => assert_eq!(self.status.carry, true),
+                    TestOp::TestCarryClear => assert_eq!(self.status.carry, false),
+                    TestOp::TestZeroSet => assert_eq!(self.status.zero, true),
+                    TestOp::TestZeroClear => assert_eq!(self.status.zero, false),
+                    TestOp::TestNegativeSet => assert_eq!(self.status.negative, true),
+                    TestOp::TestNegativeClear => assert_eq!(self.status.negative, false),
+                    TestOp::TestOverflowSet => assert_eq!(self.status.overflow, true),
+                    TestOp::TestOverflowClear => assert_eq!(self.status.overflow, false),
+                    TestOp::TestAddressContents => {
+                        address += 1;
+                        let test_address = self.bus.read_address(address);
+                        address += 2;
+                        let expected = self.bus.read_byte(address);
+                        assert!(self.bus.read_byte(test_address) == expected,
+                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nMemory:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            test_id, op_num,  test_address, self.bus.read_byte(test_address), expected); 
+                    },
+                }
+                address += 1;
+                op_num += 1;
+            }
         }
 
         // Last pushed value is at position 1.
@@ -1035,14 +1142,14 @@ pub mod tests {
         assert_eq!(cpu.bus.read_byte(end), 0x00);
     }
 
-    #[test_log::test]
+    #[test]
     fn creation() {
         let cpu = CPU::new(Memory::new(), TEST_ROM);
 
         assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start());
 
         // FIXME This expectation is incorrect, since BRK changes PC
-        // FIXME Fix this when VerifyTest is propewrly implemented
+        // FIXME Fix this when VerifyTest is properly implemented
         // assert_eq!(cpu.program_counter, test_rom_end_of_execution());
         // assert_eq!(cpu.stack_pointer, 0xff);
         assert_eq!(cpu.accumulator, 0x0);
