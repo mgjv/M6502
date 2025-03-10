@@ -55,9 +55,24 @@
     .byte $37
 .endmacro
 
-.macro TestAddressContents address, value
+.macro TestAddress address, value
     .byte $80
     .addr address
     .byte value
 .endmacro
 
+; This overwrites X.
+; FIXME Also, this does not work at the moment
+; FIXME https://forums.atariage.com/topic/305708-saving-registers-in-a-subroutine/
+.macro ClearMemory address, size
+    ;PHX
+;     PHA
+; :   LDX size
+;     LDA #$00
+;     STA address, X
+;     DEX
+;     BEQ :+
+;     JMP :-
+; :   PLA
+    ;PLX
+.endmacro

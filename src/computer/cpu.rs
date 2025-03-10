@@ -238,7 +238,7 @@ impl<B: Bus> CPU<B> {
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
 
-                debug!("{:04x}: opcode {:02x} -> {:x?}/{:x?}/{:x?} -> {:x?} {:x?}", self.program_counter, opcode, instruction, address_mode, operand_bytes, instruction, operand);
+                debug!("{:04x}: opcode {:02x} -> {:02x?}/{:02x?}/{:02x?} -> {:02x?} {:02x?}", self.program_counter, opcode, instruction, address_mode, operand_bytes, instruction, operand);
 
                 // Advance the program counter by the correct number of bytes
                 // This is done before the instruction is executed, so that the instruction can
@@ -325,11 +325,11 @@ impl<B: Bus> CPU<B> {
             Instruction::AND => {
                 match operand {
                     Operand::Immediate(value) => {
-                        self.accumulator &= value;
+                        self.set_accumulator(self.accumulator & value);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
-                        self.accumulator &= value;
+                        self.set_accumulator(self.accumulator & value);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -338,20 +338,25 @@ impl<B: Bus> CPU<B> {
                 match operand {
                     Operand::Implied => {
                         self.status.carry = self.accumulator & 0x80 != 0;
-                        self.accumulator <<= 1;
+                        self.set_accumulator(self.accumulator << 1);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
                         self.status.carry = value & 0x80 != 0;
-                        let new_value = value << 1;
-                        self.bus.write_byte(address, new_value);
+                        self.store_at_address(address, value << 1);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
             },
             Instruction::BCC => todo!(),
             Instruction::BCS => todo!(),
-            Instruction::BEQ => todo!(),
+            Instruction::BEQ => { 
+                #[cfg(test)]
+                debug!("{}", self.debug_show());
+                if self.status.zero {
+                    self.do_jump(instruction, operand);
+                }
+            },
             Instruction::BIT => todo!(),
             Instruction::BMI => todo!(),
             Instruction::BNE => todo!(),
@@ -367,29 +372,22 @@ impl<B: Bus> CPU<B> {
             Instruction::CPX => todo!(),
             Instruction::CPY => todo!(),
             Instruction::DEC => todo!(),
-            Instruction::DEX => todo!(),
-            Instruction::DEY => todo!(),
+            Instruction::DEX => { self.x_index = self.x_index.wrapping_sub(1) },
+            Instruction::DEY => { self.y_index = self.y_index.wrapping_sub(1) },
             Instruction::EOR => todo!(),
             Instruction::INC => todo!(),
-            Instruction::INX => todo!(),
-            Instruction::INY => todo!(),
-            Instruction::JMP => {
-                match operand {
-                    Operand::Address(address) => {
-                        self.program_counter = address;
-                    },
-                    _ => illegal_opcode(instruction, operand),
-                }
-            },
+            Instruction::INX => { self.x_index = self.x_index.wrapping_add(1) },
+            Instruction::INY => { self.y_index = self.y_index.wrapping_add(1) },
+            Instruction::JMP => { self.do_jump(instruction, operand); },
             Instruction::JSR => todo!(),
             Instruction::LDA => {
                 match operand {
                     Operand::Immediate(value) => {
-                        self.accumulator = value;
+                        self.set_accumulator(value);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
-                        self.accumulator = value;
+                        self.set_accumulator(value);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -397,11 +395,11 @@ impl<B: Bus> CPU<B> {
             Instruction::LDX => {
                 match operand {
                     Operand::Immediate(value) => {
-                        self.x_index = value;
+                        self.set_x_index(value);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
-                        self.x_index = value;
+                        self.set_x_index(value);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -409,11 +407,11 @@ impl<B: Bus> CPU<B> {
             Instruction::LDY => {
                 match operand {
                     Operand::Immediate(value) => {
-                        self.y_index = value;
+                        self.set_y_index(value);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
-                        self.y_index = value;
+                        self.set_y_index(value);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -427,7 +425,10 @@ impl<B: Bus> CPU<B> {
                 status.brk = true;
                 self.push_stack(status.as_byte());
             },
-            Instruction::PLA => { self.accumulator = self.pull_stack(); },
+            Instruction::PLA => { 
+                let value = self.pull_stack();
+                self.set_accumulator(value); 
+            },
             Instruction::PLP => { 
                 let value = self.pull_stack();
                 self.status = Status::from_byte(value);
@@ -551,6 +552,45 @@ impl<B: Bus> CPU<B> {
         self.bus.read_byte(address)
     }
 
+    fn do_jump(&mut self, instruction: Instruction, operand: Operand) {
+        match operand {
+            Operand::Address(address) => {
+                debug!("Jumping to {:04x}", address);
+                self.program_counter = address;
+            },
+            _ => illegal_opcode(instruction, operand),
+        }
+    }
+
+    /* Functions to update registers and addresses, maintaining status flags */
+
+    fn update_zero_and_negative_flags(&mut self, value: u8) {
+        self.status.zero = value == 0;
+        self.status.negative = value & 0x80 != 0;
+    }
+
+    fn set_accumulator(&mut self, value: u8) {
+        self.accumulator = value;
+        self.update_zero_and_negative_flags(value);
+    }
+
+    fn set_x_index(&mut self, value: u8) {
+        self.x_index = value;
+        self.update_zero_and_negative_flags(value);
+    }
+
+    fn set_y_index(&mut self, value: u8) {
+        self.y_index = value;
+        self.update_zero_and_negative_flags(value);
+    }
+
+    fn store_at_address(&mut self, address: u16, value: u8) {
+        self.bus.write_byte(address, value);
+        self.update_zero_and_negative_flags(value);
+    }
+
+    /* More complex operations than fit in a few lines */
+
     // FIXME Implement decimal mode
     fn execute_adc(&mut self, value: u8) {
         let a = self.accumulator;
@@ -564,7 +604,7 @@ impl<B: Bus> CPU<B> {
         self.status.overflow = (a > 0x7f && value > 0x7f && new_a < 0x80) 
                     || (a < 0x80 && value < 0x80 && new_a > 0x7f);
 
-        self.accumulator = new_a;
+        self.set_accumulator(new_a);
     }
 
     // FIXME Implement decimal mode, and fix flags?
@@ -978,6 +1018,7 @@ enum Instruction {
 #[cfg(test)]
 pub mod tests {
     use crate::computer::memory::Memory;
+    use std::fmt::Write;
     use super::*;
     use log::info;
 
@@ -1065,7 +1106,7 @@ pub mod tests {
                 let test_op = TestOp::try_from(test_op_code).expect(
                     &format!("Invalid test operation {:02x} at address {:04x}", test_op_code, address)
                 );
-                debug!("Test operation: {:?}/{:02x}", test_op, self.bus.read_byte(address + 1));
+                debug!("Test operation: {:?}", test_op);
                 match test_op {
                     TestOp::TestStart => assert!(false, "Nested test start at address {:04x}", address),
                     TestOp::TestEnd => break,
@@ -1079,19 +1120,19 @@ pub mod tests {
                     TestOp::TestX  => { 
                         address += 1;
                         assert!(self.x_index == self.bus.read_byte(address), 
-                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Index:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
                             test_id, op_num,  self.x_index, self.bus.read_byte(address));   
                     },
                     TestOp::TestY  => { 
                         address += 1;
                         assert!(self.y_index == self.bus.read_byte(address), 
-                            "({:02x}:{:02x}) Assertion failed on Y Index: \nY Index:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
                             test_id, op_num,  self.y_index, self.bus.read_byte(address));
                     },
                     TestOp::TestSP  => { 
                         address += 1;
                         assert!(self.stack_pointer == self.bus.read_byte(address),     
-                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nStack Pointer:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
                             test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
                     },
                     TestOp::TestCarrySet => assert_eq!(self.status.carry, true),
@@ -1108,7 +1149,7 @@ pub mod tests {
                         address += 2;
                         let expected = self.bus.read_byte(address);
                         assert!(self.bus.read_byte(test_address) == expected,
-                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nMemory:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
                             test_id, op_num,  test_address, self.bus.read_byte(test_address), expected); 
                     },
                 }
@@ -1119,13 +1160,11 @@ pub mod tests {
 
         #[allow(unused_must_use)]
         #[allow(dead_code)]
-        fn debug_show(&self) -> String {
+        pub fn debug_show(&self) -> String {
             let mut b = String::new();
-    
-            // Let's show the program, memory
-            // writeln!(b, "Registers:\tStatus:");
-            // self.show_registers(&mut b);
-            // writeln!(b, "Program memory (PC location in red):");
+            writeln!(b, "Registers:\tStatus:");
+            self.show_registers(&mut b);
+            writeln!(b, "Program memory (PC location in red):");
             self.show_program_memory(&mut b);
             // writeln!(b, "Reset memory:");
             // self.show_reset_memory(&mut b);

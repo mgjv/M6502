@@ -1,3 +1,5 @@
+; Tests for ADC and SBC 
+
 .include "test.inc"
 
 test1:
@@ -13,6 +15,9 @@ test1_checks:
     TestStart  $01
     TestA   $02
     TestCarryClear
+    TestOverflowClear
+    TestZeroClear
+    TestNegativeClear
     TestEnd
  
  test2:
@@ -26,6 +31,9 @@ test2_checks:
     TestStart  $02
     TestA   $00
     TestCarrySet
+    TestOverflowClear
+    TestZeroSet
+    TestNegativeClear
     TestEnd
 
 test3:
@@ -57,4 +65,21 @@ test4_checks:
     TestEnd
 
 test5:
+    ; prepare some data at fixed addresses
+    ;STA     $7f00, #$23
+    ;CLC
+    ;LDA     #$00
+    ;ADC     $7f00
+
+    Verify test5_checks
+    JMP test6
+
+test5_checks:
+    TestStart  $05
+    ;TestA   $23
+    ;TestCarryClear
+    TestEnd
+
+
+test6:
     HALT

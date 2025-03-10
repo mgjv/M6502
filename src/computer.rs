@@ -86,7 +86,7 @@ mod tests {
 
     use super::*;
 
-    fn setup() -> Computer<NormalClock> {
+    fn create_test_computer() -> Computer<NormalClock> {
         let rom_file_name = Path::new("assembly/basic.rom");
         let rom = std::fs::read(rom_file_name).expect(
             format!("Was not able to load rom from {}", rom_file_name.display()).as_str()
@@ -101,19 +101,31 @@ mod tests {
         )
     }
 
-    #[test]
-    fn construction() {
-        let computer = setup();
-        print!("{}", computer.startup_message());
-    }
-    
-    #[test]
-    fn run_lda_test() {
-        let mut computer = setup();
-        let program = read_program("assembly/lda.test");
+    fn run_assembly_test(file_name: &str) {
+        let mut computer = create_test_computer();
+        let program = read_program(file_name);
         let start_address = 0x1000;
         computer.load_program(start_address, &program);
         computer.run();
+    }
+
+    #[test]
+    fn construction() {
+        let computer = create_test_computer();
+        print!("{}", computer.startup_message());
+    }
+    
+    // FIXME? These probably really belong in the CPU tests, or maybe integration tests
+    #[test]
+    fn add_with_carry_test() {
+        run_assembly_test("assembly/add_with_carry.test.bin");
         // print!("{}", computer.show_state());
     }
+
+    #[test]
+    fn address_modes_test() {
+        run_assembly_test("assembly/address_modes.test.bin");
+        // print!("{}", computer.show_state());
+    }
+
 }
