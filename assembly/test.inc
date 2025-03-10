@@ -1,5 +1,10 @@
+; This is a pseudo-instruction that will cause the computer to shut down
+.macro HALT
+    .byte $fc
+.endmacro
+
 .macro  Verify  address
-    .byte $0f
+    .byte $fb
     .addr address
 .endmacro
 

@@ -82,6 +82,8 @@ impl<C: Clock> Computer<C> {
 mod tests {
     use std::path::Path;
 
+    use test_log::test;
+
     use super::*;
 
     fn setup() -> Computer<NormalClock> {
@@ -105,7 +107,7 @@ mod tests {
         print!("{}", computer.startup_message());
     }
     
-    #[test_log::test]
+    #[test]
     fn run_lda_test() {
         let mut computer = setup();
         let program = read_program("assembly/lda.test");

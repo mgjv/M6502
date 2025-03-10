@@ -16,7 +16,7 @@ all: $(TEST_TARGETS) $(PROGRAM_TARGETS) $(ROM_TARGETS)
 %.program: %.p.s
 	$(CL65) -t none -o $@ $<
 
-%.test: %.test.s 
+%.test: %.test.s test.inc
 	$(CL65) -t none -o $@ $<
 
 %.rom: %.rom.s %.rom.cfg

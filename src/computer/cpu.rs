@@ -224,7 +224,12 @@ impl<B: Bus> CPU<B> {
                 debug!("{:04x}: opcode {:02x} -> BRK/Implied", self.program_counter, opcode);
                 self.execute_instruction(Instruction::BRK, Operand::Implied);
                 None
-            }
+            },
+            #[cfg(test)]
+            Some((Instruction::HALT, _, _)) => {
+                debug!("{:04x}: opcode {:02x} -> HALT", self.program_counter, opcode);
+                None
+            },
             // Any other valid instruction, we process
             Some((instruction, address_mode, cycles)) => {
 
@@ -257,7 +262,7 @@ impl<B: Bus> CPU<B> {
                 // This shouldn't happen
                 error!("{:04x}: Unused opcode {:02x} found", self.program_counter, opcode);
                 None
-            }
+            },
         }
     }
 
@@ -485,6 +490,8 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
+            #[cfg(test)]
+            Instruction::HALT => { assert!(false, "Special HALT instruction cannot be executed"); },
         }
     }
 
@@ -636,10 +643,8 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
         0x0c => None,
         0x0d => Some((Instruction::ORA, AddressMode::Absolute, 4)),
         0x0e => Some((Instruction::ASL, AddressMode::Absolute, 6)),
-        #[cfg(not(test))]
         0x0f => None,
-        #[cfg(test)]
-        0x0f => Some((Instruction::VerifyTest, AddressMode::Absolute, 0)),
+
 
         0x10 => Some((Instruction::BPL, AddressMode::Relative, 2)),
         0x11 => Some((Instruction::ORA, AddressMode::IndirectY, 5)),
@@ -890,8 +895,14 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
         0xf8 => Some((Instruction::SED, AddressMode::Implied, 2)),
         0xf9 => Some((Instruction::SBC, AddressMode::AbsoluteY, 4)),
         0xfa => None,
+#[cfg(not(test))]
         0xfb => None,
+#[cfg(test)]
+        0xfb => Some((Instruction::VerifyTest, AddressMode::Absolute, 0)),
+#[cfg(not(test))]
         0xfc => None,
+#[cfg(test)]
+        0xfc => Some((Instruction::HALT, AddressMode::Implied, 0)),
         0xfd => Some((Instruction::SBC, AddressMode::AbsoluteX, 4)),
         0xfe => Some((Instruction::INC, AddressMode::AbsoluteX, 7)),
         0xff => None,
@@ -959,6 +970,8 @@ enum Instruction {
     TYA, // transfer Y to accumulator
     #[cfg(test)]
     VerifyTest, // Used to verify CPU status during tests only
+    #[cfg(test)]
+    HALT, // Used to halt the CPU during tests only
 }
 
 

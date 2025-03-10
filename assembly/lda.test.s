@@ -57,4 +57,4 @@ test4_checks:
     TestEnd
 
 test5:
-    BRK
+    HALT
