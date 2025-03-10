@@ -82,8 +82,6 @@ impl<C: Clock> Computer<C> {
 mod tests {
     use std::path::Path;
 
-    use crate::computer::memory::address_to_bytes;
-
     use super::*;
 
     fn setup() -> Computer<NormalClock> {
@@ -108,17 +106,12 @@ mod tests {
     }
     
     #[test_log::test]
-    fn run_simple_program() {
+    fn run_lda_test() {
         let mut computer = setup();
-        let program = read_program("assembly/simple_add.program");
+        let program = read_program("assembly/lda.test");
         let start_address = 0x1000;
         computer.load_program(start_address, &program);
         computer.run();
         // print!("{}", computer.show_state());
-        // This is where we think the program counter should have been before the BRK
-        let pcb = address_to_bytes(start_address + 1 + program.len() as u16);
-        // Low and High bytes at stack positions 2 and 3
-        // assert_eq!(computer.cpu.stack_byte(2), pcb[0]);
-        // assert_eq!(computer.cpu.stack_byte(3), pcb[1]);
     }
 }

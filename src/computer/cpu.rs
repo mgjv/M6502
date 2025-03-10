@@ -235,11 +235,13 @@ impl<B: Bus> CPU<B> {
 
                 debug!("{:04x}: opcode {:02x} -> {:x?}/{:x?}/{:x?} -> {:x?} {:x?}", self.program_counter, opcode, instruction, address_mode, operand_bytes, instruction, operand);
 
+                // Advance the program counter by the correct number of bytes
+                // This is done before the instruction is executed, so that the instruction can
+                // modify the program counter if needed
+                self.program_counter += 1 + operand_size;
+
                 // update the state of memory and CPU
                 self.execute_instruction(instruction, operand);
-
-                // Advance the program counter by the correct number of bytes
-                self.program_counter += 1 + operand_size;
 
                 // FIXME This is here to stop us from running too long. Need to fix
                 if self.program_counter > NMI_ADDRESS {
@@ -980,8 +982,9 @@ pub mod tests {
         test_rom_start() + offset as u16
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, PartialEq)]
     enum TestOp {
+        TestStart,
         TestEnd,
 
         TestA,
@@ -1006,6 +1009,7 @@ pub mod tests {
 
         fn try_from(value: u8) -> Result<Self, Self::Error> {
             match value {
+                0xc0 => Ok(TestOp::TestStart),
                 0x00 => Ok(TestOp::TestEnd),
                 0x01 => Ok(TestOp::TestA),
                 0x02 => Ok(TestOp::TestX),
@@ -1031,7 +1035,11 @@ pub mod tests {
         // The test parameters start at the given address
         pub fn verify_test(&self, start_address: u16) {
 
-            assert!(self.bus.read_byte(start_address) == 0xff, 
+            let first_op_code = self.bus.read_byte(start_address);
+            let first_op = TestOp::try_from(first_op_code).expect(
+                &format!("Invalid test operation {:02x} at address {:04x}", first_op_code, start_address)
+            );
+            assert!(first_op == TestOp::TestStart, 
                 "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
             let test_id = self.bus.read_byte(start_address + 1);
 
@@ -1046,6 +1054,7 @@ pub mod tests {
                 );
                 debug!("Test operation: {:?}/{:02x}", test_op, self.bus.read_byte(address + 1));
                 match test_op {
+                    TestOp::TestStart => assert!(false, "Nested test start at address {:04x}", address),
                     TestOp::TestEnd => break,
                     TestOp::TestA => {
                         address += 1;
@@ -1094,14 +1103,6 @@ pub mod tests {
                 op_num += 1;
             }
         }
-
-        // Last pushed value is at position 1.
-        pub fn stack_byte(&self, position: u8) -> u8 {
-            let address = bytes_to_address(self.stack_pointer + position, 0x01);
-            self.bus.read_byte(address)
-        }
-
-        // TODO assertions for status register, stack content and memory content
 
         #[allow(unused_must_use)]
         #[allow(dead_code)]

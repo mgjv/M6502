@@ -3,11 +3,11 @@
     .addr address
 .endmacro
 
-
 .macro  TestStart id
-    .byte $ff, id
+    .byte $c0, id
 .endmacro
 
+; Use the most likely "wrong" byte value for the end marker
 .macro  TestEnd
     .byte $00
 .endmacro
