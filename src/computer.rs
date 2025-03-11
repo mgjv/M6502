@@ -84,9 +84,31 @@ mod tests {
     use log::debug;
 
     use test_log::test;
+    use test_case::test_case;
 
     use super::*;
 
+    #[test]
+    fn construction() {
+        let computer = create_test_computer();
+        print!("{}", computer.startup_message());
+    }
+
+    #[test_case("assembly/framework.test.bin"; "test framework")]
+    #[test_case("assembly/branches.test.bin"; "branching")]
+    #[test_case("assembly/address_modes.test.bin"; "address modes")]    
+    #[test_case("assembly/add_with_carry.test.bin"; "add with carry")]
+    fn assembly(file_name: &str) {
+        let mut computer = create_test_computer();
+        let program = read_program(file_name);
+        let start_address = 0x1000;
+        debug!("Loading Assembly test {}", file_name);
+        computer.load_program(start_address, &program);
+        computer.run();
+    }
+
+    // HELPERS
+     
     fn create_test_computer() -> Computer<NormalClock> {
         let rom_file_name = Path::new("assembly/basic.rom");
         let rom = std::fs::read(rom_file_name).expect(
@@ -100,41 +122,6 @@ mod tests {
         std::fs::read(program_file_name).expect(
             format!("Was not able to load program from {}", program_file_name.display()).as_str()
         )
-    }
-
-    fn run_assembly_test(file_name: &str) {
-        let mut computer = create_test_computer();
-        let program = read_program(file_name);
-        let start_address = 0x1000;
-        debug!("Loading Assembly test {}", file_name);
-        computer.load_program(start_address, &program);
-        computer.run();
-    }
-
-    #[test]
-    fn construction() {
-        let computer = create_test_computer();
-        print!("{}", computer.startup_message());
-    }
-    
-
-    #[test]
-    fn assembly_framework() {
-        run_assembly_test("assembly/framework.test.bin");
-    }
-
-    // FIXME? These probably really belong in the CPU tests, or maybe integration tests
-    #[test]
-    fn basic_assembly_tests() {
-        run_assembly_test("assembly/add_with_carry.test.bin");
-        run_assembly_test("assembly/address_modes.test.bin");
-        // print!("{}", computer.show_state());
-    }
-
-    #[test]
-    fn current_assembly_test() {
-        run_assembly_test("assembly/branches.test.bin");
-        // print!("{}", computer.show_state());
     }
 
 }
