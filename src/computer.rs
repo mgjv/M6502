@@ -100,14 +100,15 @@ mod tests {
     // TODO write a test to check that the test cases are there
     // maybe run make automatically?
 
-    #[test_case("assembly/framework.test.bin"; "test framework")]
-    #[test_case("assembly/branches.test.bin"; "branching")]
-    #[test_case("assembly/address_modes.test.bin"; "address modes")]    
-    #[test_case("assembly/add_with_carry.test.bin"; "add with carry")]
-    fn assembly(file_name: &str) {
+    #[test_case("framework"; "test framework")]
+    #[test_case("branches"; "conditional branches")]
+    #[test_case("address_modes"; "address modes")]    
+    #[test_case("add_with_carry"; "add with carry")]
+    fn assembly(test_name: &str) {
         // let _ = env_logger::builder().is_test(true).try_init();
         let mut computer = create_test_computer();
-        let program = read_program(file_name);
+        let file_name = format!("assembly/{}.test.bin", test_name);
+        let program = read_program(file_name.as_str());
         let start_address = 0x1000;
         debug!("Loading Assembly test {}", file_name);
         computer.load_program(start_address, &program);
