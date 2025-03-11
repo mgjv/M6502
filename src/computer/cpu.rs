@@ -1045,7 +1045,7 @@ pub mod tests {
     use crate::computer::memory::Memory;
     use std::fmt::Write;
     use super::*;
-    use log::info;
+    use log::debug;
 
     pub const TEST_ROM: &'static[u8] = 
         &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -1122,7 +1122,7 @@ pub mod tests {
                 "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
             let test_id = self.bus.read_byte(start_address + 1);
 
-            info!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
+            debug!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
 
             let mut address = start_address + 2;
             let mut op_num = 1;

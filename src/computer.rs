@@ -80,11 +80,14 @@ impl<C: Clock> Computer<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use log::debug;
+    use std::{path::Path, process::Command};
+    use log::{debug, info};
 
     use test_log::test;
     use test_case::test_case;
+    use std::sync::Once;
+
+    static MAKE_ASSEMBLY: Once = Once::new();
 
     use super::*;
 
@@ -94,11 +97,15 @@ mod tests {
         print!("{}", computer.startup_message());
     }
 
+    // TODO write a test to check that the test cases are there
+    // maybe run make automatically?
+
     #[test_case("assembly/framework.test.bin"; "test framework")]
     #[test_case("assembly/branches.test.bin"; "branching")]
     #[test_case("assembly/address_modes.test.bin"; "address modes")]    
     #[test_case("assembly/add_with_carry.test.bin"; "add with carry")]
     fn assembly(file_name: &str) {
+        // let _ = env_logger::builder().is_test(true).try_init();
         let mut computer = create_test_computer();
         let program = read_program(file_name);
         let start_address = 0x1000;
@@ -108,8 +115,9 @@ mod tests {
     }
 
     // HELPERS
-     
+
     fn create_test_computer() -> Computer<NormalClock> {
+        MAKE_ASSEMBLY.call_once(build_assembly);
         let rom_file_name = Path::new("assembly/basic.rom");
         let rom = std::fs::read(rom_file_name).expect(
             format!("Was not able to load rom from {}", rom_file_name.display()).as_str()
@@ -118,10 +126,20 @@ mod tests {
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {
+        MAKE_ASSEMBLY.call_once(build_assembly);
         let program_file_name = Path::new(file_name);
         std::fs::read(program_file_name).expect(
             format!("Was not able to load program from {}", program_file_name.display()).as_str()
         )
+    }
+
+    fn build_assembly() {
+        info!("Building assembly");
+        Command::new("make")
+            .arg("-C")
+            .arg("assembly")
+            .output()
+            .expect("Make failed to run");
     }
 
 }
