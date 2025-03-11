@@ -136,8 +136,8 @@ mod tests {
     fn build_assembly() {
         info!("Building assembly");
         Command::new("make")
-            .arg("-C")
-            .arg("assembly")
+            .arg("-C").arg("assembly") // chdir to assembly
+            .arg("-j").arg("8") // run this many in parallel
             .output()
             .expect("Make failed to run");
     }

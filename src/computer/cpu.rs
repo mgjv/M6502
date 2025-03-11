@@ -301,9 +301,10 @@ impl<B: Bus> CPU<B> {
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into()))
             },
             AddressMode::Relative    => {
-                 // offset is relative to immediate next instruction address
-                let offset = (bytes[0] as i8) as u16 + 2;
-                let address = self.program_counter.wrapping_add(offset);
+                // offset is a 2's complement signed byte
+                let offset = bytes[0] as i8;
+                // offset is relative to immediate next instruction address         
+                let address = self.program_counter.wrapping_add(2).wrapping_add(offset as u16);
                 Operand::Address(address)
 
             },
