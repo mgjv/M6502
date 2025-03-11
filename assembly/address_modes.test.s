@@ -2,18 +2,16 @@
 
 .include "test.inc"
 
-test1:
     LDX #$de        ; Immediate addressing mode
     STX $10         ; Zero page addressing mode
     STX $0100       ; Absolute addressing mode
     LDY #$04
     STX $10,Y       ; Zero page,Y addressing mode
 
-    Verify test1_checks
-    JMP     test2
+    VRFY  :+
+    JMP     :++
 
-test1_checks:
-    TestStart   $01
+:   TestStart   $01
     TestX       $de
     TestY       $04
     TestAddress $0100, $de
@@ -21,18 +19,16 @@ test1_checks:
     TestAddress $0014, $de
     TestEnd
 
-test2:
-    LDY #$ab        ; Immediate addressing mode
+:   LDY #$ab        ; Immediate addressing mode
     STY $70         ; Zero page addressing mode
     STY $0200       ; Absolute addressing mode
     LDX #$03
     STY $60,X       ; Zero page,X addressing mode
 
-    Verify test2_checks
-    JMP     test3
+    VRFY  :+
+    JMP     :++
 
-test2_checks:
-    TestStart   $02
+:   TestStart   $02
     TestY       $ab
     TestX       $03
     TestAddress $0200, $ab
@@ -41,8 +37,7 @@ test2_checks:
     TestEnd
 
 
-test3:
-    LDA #$7a        ; Immediate addressing mode
+:   LDA #$7a        ; Immediate addressing mode
     STA $70         ; Zero page addressing mode
     STA $0300       ; Absolute addressing mode
     LDX #$02
@@ -52,11 +47,10 @@ test3:
     STA $0310, X    ; Absolute,X addressing mode
     STA $0310, Y    ; Absolute,X addressing mode
  
-    Verify test3_checks
-    JMP     test4
+    VRFY  :+
+    JMP     :++
 
-test3_checks:
-    TestStart   $03
+:   TestStart   $03
     TestA       $7a
     TestX       $02
     TestY       $04
@@ -68,5 +62,36 @@ test3_checks:
     TestAddress $0314, $7a
     TestEnd
 
-test4:
-    HALT
+; Test relative mode
+
+:   LDA #$ff
+    LDX #$ff
+    LDY #$ff
+    CLC
+    BCC loc2
+    FAIL
+loc1:
+    LDX #$02
+    CLC
+    BCC loc3
+    FAIL
+loc2:
+    LDA #$01
+    CLC
+    BCC loc1
+    FAIL
+loc3:
+    LDY #$03
+
+    VRFY    :+
+    JMP     :++
+
+:   TestStart $04
+    TestA $01
+    TestX $02
+    TestY $03
+    TestEnd
+
+
+; End of all tests
+:   HALT

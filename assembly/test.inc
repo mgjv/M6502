@@ -1,13 +1,29 @@
+; Macros to assist in testing. There are pseudo-ionstructions that 
+; need to be handled by the CPU in test mode only (see cpu.rs),
+; and there are specific test operators that are only active in VRFY mode
+
+; This is a pseudo instruction that will start a verification test l;ocated at the 
+; given address/label
+.macro  VRFY  address
+    .byte $fa
+    .addr address
+.endmacro
+
+; Fail the test. Use this to identify places in the code that should not be 
+; reached
+.macro FAIL
+    .byte $fb
+.endmacro
+
 ; This is a pseudo-instruction that will cause the computer to shut down
 .macro HALT
     .byte $fc
 .endmacro
 
-.macro  Verify  address
-    .byte $fb
-    .addr address
-.endmacro
+; The following instructions are only valid during a VRFY started loop
+; which ends when TestEnd is encountered
 
+; Identify the start of a test. Tests fail if this is not present
 .macro  TestStart id
     .byte $c0, id
 .endmacro
@@ -17,6 +33,7 @@
     .byte $00
 .endmacro
 
+; Test the contents of registers
 .macro  TestA   e
     .byte $01, e
 .endmacro
@@ -30,6 +47,7 @@
     .byte $08, e
 .endmacro
 
+; Test the status flags
 .macro  TestCarrySet
     .byte $30
 .endmacro

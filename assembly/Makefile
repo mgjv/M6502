@@ -1,5 +1,5 @@
 PROGRAM_SOURCES := $(wildcard *.program.s)
-PROGRAM_TARGETS := $(PROGRAM_SOURCES:%.p.s=%.program.bin)
+PROGRAM_TARGETS := $(PROGRAM_SOURCES:%.program.s=%.program.bin)
 
 ROM_SOURCES := $(wildcard *.rom.s)
 ROM_TARGETS := $(ROM_SOURCES:.s=)

@@ -81,6 +81,7 @@ impl<C: Clock> Computer<C> {
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use log::debug;
 
     use test_log::test;
 
@@ -105,6 +106,7 @@ mod tests {
         let mut computer = create_test_computer();
         let program = read_program(file_name);
         let start_address = 0x1000;
+        debug!("Loading Assembly test {}", file_name);
         computer.load_program(start_address, &program);
         computer.run();
     }
@@ -115,16 +117,23 @@ mod tests {
         print!("{}", computer.startup_message());
     }
     
+
+    #[test]
+    fn assembly_framework() {
+        run_assembly_test("assembly/framework.test.bin");
+    }
+
     // FIXME? These probably really belong in the CPU tests, or maybe integration tests
     #[test]
-    fn add_with_carry_test() {
+    fn basic_assembly_tests() {
         run_assembly_test("assembly/add_with_carry.test.bin");
+        run_assembly_test("assembly/address_modes.test.bin");
         // print!("{}", computer.show_state());
     }
 
     #[test]
-    fn address_modes_test() {
-        run_assembly_test("assembly/address_modes.test.bin");
+    fn current_assembly_test() {
+        run_assembly_test("assembly/branches.test.bin");
         // print!("{}", computer.show_state());
     }
 

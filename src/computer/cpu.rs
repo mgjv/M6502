@@ -219,7 +219,7 @@ impl<B: Bus> CPU<B> {
         // TODO We should get the number of cycles from execute_instruction(), not a static table.
 
         match decode_instruction(opcode) {
-            // If we get a BRK, we halt execution
+            // FIXME This isn't the right implementation for BRK
             Some((Instruction::BRK, _, _)) => {
                 debug!("{:04x}: opcode {:02x} -> BRK/Implied", self.program_counter, opcode);
                 self.execute_instruction(Instruction::BRK, Operand::Implied);
@@ -228,6 +228,11 @@ impl<B: Bus> CPU<B> {
             #[cfg(test)]
             Some((Instruction::HALT, _, _)) => {
                 debug!("{:04x}: opcode {:02x} -> HALT", self.program_counter, opcode);
+                None
+            },
+            #[cfg(test)]
+            Some((Instruction::FAIL, _, _)) => {
+                assert!(false, "Address {:04x} contains FAIL.", self.program_counter);
                 None
             },
             // Any other valid instruction, we process
@@ -296,8 +301,9 @@ impl<B: Bus> CPU<B> {
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into()))
             },
             AddressMode::Relative    => {
-                let offset = bytes[0];
-                let address = self.program_counter.wrapping_add(offset as u16);
+                 // offset is relative to immediate next instruction address
+                let offset = (bytes[0] as i8) as u16 + 2;
+                let address = self.program_counter.wrapping_add(offset);
                 Operand::Address(address)
 
             },
@@ -348,18 +354,28 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::BCC => todo!(),
-            Instruction::BCS => todo!(),
+            Instruction::BCC => { 
+                if !self.status.carry {
+                    self.do_jump(instruction, operand);
+                }
+            },
+            Instruction::BCS => { 
+                if self.status.carry {
+                    self.do_jump(instruction, operand);
+                }
+            },
             Instruction::BEQ => { 
-                #[cfg(test)]
-                debug!("{}", self.debug_show());
                 if self.status.zero {
                     self.do_jump(instruction, operand);
                 }
             },
             Instruction::BIT => todo!(),
             Instruction::BMI => todo!(),
-            Instruction::BNE => todo!(),
+            Instruction::BNE => { 
+                if !self.status.zero {
+                    self.do_jump(instruction, operand);
+                }
+            },
             Instruction::BPL => todo!(),
             Instruction::BRK => { self.execute_brk(); },
             Instruction::BVC => todo!(),
@@ -483,7 +499,7 @@ impl<B: Bus> CPU<B> {
             Instruction::TXS => { self.stack_pointer = self.x_index; },
             Instruction::TYA => { self.accumulator = self.y_index; },
             #[cfg(test)]
-            Instruction::VerifyTest => {
+            Instruction::VRFY => {
                 match operand {
                     Operand::Address(address) => {
                         self.verify_test(address);
@@ -492,7 +508,9 @@ impl<B: Bus> CPU<B> {
                 }
             },
             #[cfg(test)]
-            Instruction::HALT => { assert!(false, "Special HALT instruction cannot be executed"); },
+            Instruction::FAIL | Instruction::HALT => { 
+                assert!(false, "{} should already have been handled before this", instruction); 
+            },
         }
     }
 
@@ -934,14 +952,18 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
         0xf7 => None,
         0xf8 => Some((Instruction::SED, AddressMode::Implied, 2)),
         0xf9 => Some((Instruction::SBC, AddressMode::AbsoluteY, 4)),
+        #[cfg(not(test))]
         0xfa => None,
-#[cfg(not(test))]
+        #[cfg(not(test))]
         0xfb => None,
-#[cfg(test)]
-        0xfb => Some((Instruction::VerifyTest, AddressMode::Absolute, 0)),
-#[cfg(not(test))]
+        #[cfg(not(test))]
         0xfc => None,
-#[cfg(test)]
+        // When testing, the following instructions are active
+        #[cfg(test)]
+        0xfa => Some((Instruction::VRFY, AddressMode::Absolute, 0)),
+        #[cfg(test)]
+        0xfb => Some((Instruction::FAIL, AddressMode::Implied, 0)),
+        #[cfg(test)]
         0xfc => Some((Instruction::HALT, AddressMode::Implied, 0)),
         0xfd => Some((Instruction::SBC, AddressMode::AbsoluteX, 4)),
         0xfe => Some((Instruction::INC, AddressMode::AbsoluteX, 7)),
@@ -950,7 +972,7 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
 }
 
 // The Instructions that the COU can execute
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, strum_macros::Display)]
 enum Instruction {
     ADC, // add with carry
     AND, // and (with accumulator)
@@ -1008,8 +1030,11 @@ enum Instruction {
     TXA, // transfer X to accumulator
     TXS, // transfer X to stack pointer
     TYA, // transfer Y to accumulator
+    // The following four letter instructions ar
     #[cfg(test)]
-    VerifyTest, // Used to verify CPU status during tests only
+    VRFY, // Used to start a special verification mode during assembly tests
+    #[cfg(test)]
+    FAIL, // Used to indicate addresses that should not be reached
     #[cfg(test)]
     HALT, // Used to halt the CPU during tests only
 }
