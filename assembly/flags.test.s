@@ -117,7 +117,7 @@
     VRFY    :+
     JMP     :++
 
-:   TestStart   $1314
+:   TestStart   $15
     ; TestOverflowClear
     TestEnd
 
@@ -129,7 +129,7 @@
     VRFY    :+
     JMP     :++
 
-:   TestStart   $1314
+:   TestStart   $16
     ; TestOverflowSet
     TestEnd
 
@@ -141,7 +141,7 @@
     VRFY    :+
     JMP     :++
 
-:   TestStart   $1314
+:   TestStart   $17
     ; TestOverflowSet
     TestEnd
 
