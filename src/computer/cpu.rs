@@ -365,22 +365,38 @@ impl<B: Bus> CPU<B> {
                     self.do_jump(instruction, operand);
                 }
             },
-            Instruction::BEQ => { 
+            Instruction::BEQ => {
                 if self.status.zero {
                     self.do_jump(instruction, operand);
                 }
             },
             Instruction::BIT => todo!(),
-            Instruction::BMI => todo!(),
-            Instruction::BNE => { 
+            Instruction::BMI => {
+                if self.status.negative {
+                    self.do_jump(instruction, operand);
+                }
+            },
+            Instruction::BNE => {
                 if !self.status.zero {
                     self.do_jump(instruction, operand);
                 }
             },
-            Instruction::BPL => todo!(),
+            Instruction::BPL => {
+                if !self.status.negative {
+                    self.do_jump(instruction, operand);
+                }
+            },
             Instruction::BRK => { self.execute_brk(); },
-            Instruction::BVC => todo!(),
-            Instruction::BVS => todo!(),
+            Instruction::BVC => {
+                if !self.status.overflow {
+                    self.do_jump(instruction, operand);
+                }
+            },
+            Instruction::BVS => {
+                if self.status.overflow {
+                    self.do_jump(instruction, operand);
+                }
+            },
             Instruction::CLC => { self.status.carry = false; },
             Instruction::CLD => { self.status.decimal = false; },
             Instruction::CLI => { self.status.irq_disable = false; },
@@ -584,6 +600,7 @@ impl<B: Bus> CPU<B> {
     /* Functions to update registers and addresses, maintaining status flags */
 
     fn update_zero_and_negative_flags(&mut self, value: u8) {
+        debug!("Updating zero and negative based on {:02x}", value);
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 != 0;
     }
@@ -1190,8 +1207,8 @@ pub mod tests {
             let mut b = String::new();
             writeln!(b, "Registers:\tStatus:");
             self.show_registers(&mut b);
-            writeln!(b, "Program memory (PC location in red):");
-            self.show_program_memory(&mut b);
+            // writeln!(b, "Program memory (PC location in red):");
+            // self.show_program_memory(&mut b);
             // writeln!(b, "Reset memory:");
             // self.show_reset_memory(&mut b);
             // writeln!(b, "Stack:");
