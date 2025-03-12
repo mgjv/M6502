@@ -320,11 +320,11 @@ impl<B: Bus> CPU<B> {
             Instruction::ADC => {
                 match operand {
                     Operand::Immediate(value) => {
-                        self.execute_adc(value);
+                        self.add_with_carry(value);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
-                        self.execute_adc(value);
+                        self.add_with_carry(value);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -473,11 +473,11 @@ impl<B: Bus> CPU<B> {
             Instruction::SBC => {
                 match operand {
                     Operand::Immediate(value) => {
-                        self.execute_sbc(value);
+                        self.subtract_with_carry(value);
                     },
                     Operand::Address(address) => {
                         let value = self.bus.read_byte(address);
-                        self.execute_sbc(value);
+                        self.subtract_with_carry(value);
                     },
                     _ => illegal_opcode(instruction, operand),
                 }
@@ -628,7 +628,7 @@ impl<B: Bus> CPU<B> {
     /* More complex operations than fit in a few lines */
 
     // FIXME Implement decimal mode
-    fn execute_adc(&mut self, value: u8) {
+    fn add_with_carry(&mut self, value: u8) {
         let a = self.accumulator;
         let c = u8::from(self.status.carry); // either 0 or 1
 
@@ -644,10 +644,17 @@ impl<B: Bus> CPU<B> {
     }
 
     // FIXME Implement decimal mode, and fix flags?
-    fn execute_sbc(&mut self, value: u8) {
-        self.execute_adc(!value)
-    }
+    fn subtract_with_carry(&mut self, value: u8) {
+        let a = self.accumulator;
+        let c = u8::from(self.status.carry); // either 0 or 1
 
+        let new_a = a.wrapping_sub(value).wrapping_sub(1 - c);
+
+        self.status.carry = a >= value + (1 - c);
+        self.status.overflow = (a ^ new_a) & 0x80 != 0 && (a ^ value) & 0x80 != 0;
+
+        self.set_accumulator(new_a);
+    }
 }
 
 fn illegal_opcode(instruction: Instruction, operand: Operand) {
@@ -1128,7 +1135,7 @@ pub mod tests {
 
     // Add some methods to be used in integration tests in computer
     impl <B: Bus> CPU<B> {
-        // This is called by the pseudo instruction VRFTST
+        // This is called by the pseudo test instruction VRFY
         // The test parameters start at the given address
         pub fn verify_test(&self, start_address: u16) {
 
@@ -1178,6 +1185,7 @@ pub mod tests {
                             "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
                             test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
                     },
+                    // TODO custom messages for these, maybe?
                     TestOp::TestCarrySet => assert_eq!(self.status.carry, true),
                     TestOp::TestCarryClear => assert_eq!(self.status.carry, false),
                     TestOp::TestZeroSet => assert_eq!(self.status.zero, true),

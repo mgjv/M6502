@@ -118,7 +118,7 @@
     JMP     :++
 
 :   TestStart   $15
-    ; TestOverflowClear
+    TestOverflowClear
     TestEnd
 
 ; -128 - 1 = -129, V set
@@ -130,7 +130,7 @@
     JMP     :++
 
 :   TestStart   $16
-    ; TestOverflowSet
+    TestOverflowSet
     TestEnd
 
 ; 127 - -1 = 128, V set
@@ -142,7 +142,7 @@
     JMP     :++
 
 :   TestStart   $17
-    ; TestOverflowSet
+    TestOverflowSet
     TestEnd
 
 ; End of all tests
