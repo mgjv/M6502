@@ -7,7 +7,7 @@
 ; Conditional branch tests
 
 ; Test BEQ
-:   LDX #$ff    ; load a canonical value in X and Y
+    LDX #$ff    ; load a canonical value in X and Y
     LDY #$ff
     LDA #$00    ; set the zero flag
     BEQ :+

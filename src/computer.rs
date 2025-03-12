@@ -78,7 +78,7 @@ impl<C: Clock> Computer<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::{path::Path, process::Command};
+    use std::{path::Path, process::{Command, Stdio}};
     use log::{debug, info};
 
     use test_log::test;
@@ -101,7 +101,8 @@ mod tests {
     #[test_case("framework"; "test framework")]
     #[test_case("flags"; "status flags")]
     #[test_case("branches"; "conditional branches")]
-    #[test_case("address_modes"; "address modes")]    
+    #[test_case("address_modes"; "address modes")] 
+    #[test_case("transfer_instructions"; "transfer instructions")] 
     #[test_case("add_with_carry"; "add with carry")]
     fn assembly(test_name: &str) {
         let _ = env_logger::builder().is_test(true).try_init();
@@ -138,6 +139,7 @@ mod tests {
         let status = Command::new("make")
             .arg("-C").arg("assembly") // chdir to assembly
             .arg("-j").arg("8") // run this many in parallel
+            .stdout(Stdio::null())
             .status()
             .expect("Make failed to run");
 

@@ -290,14 +290,15 @@ impl<B: Bus> CPU<B> {
             },
             AddressMode::IndirectX   => {
                 // Add X to zero page address stored in bytes[0]. Return address stored there
-                let address = bytes_to_address(0, bytes[0].wrapping_add(self.x_index));
+                let address = bytes_to_address(bytes[0].wrapping_add(self.x_index), 0x00);
                 let bytes = self.bus.read_two_bytes(address);
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]))
             },
             AddressMode::IndirectY   => {
                 // Add contents of Y to address stored in zero page at byte[0] and byte[0] + 1, and return
-                let address = bytes_to_address(0, bytes[0]);
+                let address = bytes_to_address(bytes[0], 0x00);
                 let bytes = self.bus.read_two_bytes(address);
+                //debug!("read from {:04x}: address bytes: {:02x?}", address, bytes);
                 Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into()))
             },
             AddressMode::Relative    => {
@@ -306,7 +307,6 @@ impl<B: Bus> CPU<B> {
                 // offset is relative to immediate next instruction address         
                 let address = self.program_counter.wrapping_add(2).wrapping_add(offset as u16);
                 Operand::Address(address)
-
             },
             AddressMode::Zeropage    => Operand::Address(bytes_to_address(bytes[0], 0)),
             AddressMode::ZeropageX   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.x_index.into())),
@@ -600,7 +600,6 @@ impl<B: Bus> CPU<B> {
     /* Functions to update registers and addresses, maintaining status flags */
 
     fn update_zero_and_negative_flags(&mut self, value: u8) {
-        debug!("Updating zero and negative based on {:02x}", value);
         self.status.zero = value == 0;
         self.status.negative = value & 0x80 != 0;
     }
@@ -866,7 +865,7 @@ const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode, u8
         0x8f => None,
 
         0x90 => Some((Instruction::BCC, AddressMode::Relative, 2)),
-        0x91 => Some((Instruction::STA, AddressMode::IndirectX, 6)),
+        0x91 => Some((Instruction::STA, AddressMode::IndirectY, 6)),
         0x92 => None,
         0x93 => None,
         0x94 => Some((Instruction::STY, AddressMode::ZeropageX, 4)),
@@ -1104,6 +1103,12 @@ pub mod tests {
         TestNegativeClear,
         TestOverflowSet,
         TestOverflowClear,
+        TestDecimalSet,
+        TestDecimalClear,
+        TestInterruptSet,
+        TestInterruptClear,
+        TestBreakSet,
+        TestBreakClear,
 
         TestAddressContents,
     }
@@ -1127,6 +1132,12 @@ pub mod tests {
                 0x35 => Ok(TestOp::TestNegativeClear),
                 0x36 => Ok(TestOp::TestOverflowSet),
                 0x37 => Ok(TestOp::TestOverflowClear),
+                0x38 => Ok(TestOp::TestDecimalSet),
+                0x39 => Ok(TestOp::TestDecimalClear),
+                0x3a => Ok(TestOp::TestInterruptSet),
+                0x3b => Ok(TestOp::TestInterruptClear),
+                0x3c => Ok(TestOp::TestBreakSet),
+                0x3d => Ok(TestOp::TestBreakClear),
                 0x80 => Ok(TestOp::TestAddressContents),
                 _ => Err(()),
             }
@@ -1161,48 +1172,54 @@ pub mod tests {
                     TestOp::TestStart => assert!(false, "Nested test start at address {:04x}", address),
                     TestOp::TestEnd => break,
                     TestOp::TestA => {
-                        address += 1;
-                        // assert_eq!(self.accumulator, self.bus.read_byte(address));
-                        assert!(self.accumulator == self.bus.read_byte(address),
-                            "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
-                            test_id, op_num, self.accumulator, self.bus.read_byte(address));
-                    },
+                                        address += 1;
+                                        // assert_eq!(self.accumulator, self.bus.read_byte(address));
+                                        assert!(self.accumulator == self.bus.read_byte(address),
+                                            "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                                            test_id, op_num, self.accumulator, self.bus.read_byte(address));
+                                    },
                     TestOp::TestX  => { 
-                        address += 1;
-                        assert!(self.x_index == self.bus.read_byte(address), 
-                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  self.x_index, self.bus.read_byte(address));   
-                    },
+                                        address += 1;
+                                        assert!(self.x_index == self.bus.read_byte(address), 
+                                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
+                                            test_id, op_num,  self.x_index, self.bus.read_byte(address));   
+                                    },
                     TestOp::TestY  => { 
-                        address += 1;
-                        assert!(self.y_index == self.bus.read_byte(address), 
-                            "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  self.y_index, self.bus.read_byte(address));
-                    },
+                                        address += 1;
+                                        assert!(self.y_index == self.bus.read_byte(address), 
+                                            "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
+                                            test_id, op_num,  self.y_index, self.bus.read_byte(address));
+                                    },
                     TestOp::TestSP  => { 
-                        address += 1;
-                        assert!(self.stack_pointer == self.bus.read_byte(address),     
-                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
-                    },
-                    // TODO custom messages for these, maybe?
-                    TestOp::TestCarrySet => assert_eq!(self.status.carry, true),
-                    TestOp::TestCarryClear => assert_eq!(self.status.carry, false),
-                    TestOp::TestZeroSet => assert_eq!(self.status.zero, true),
-                    TestOp::TestZeroClear => assert_eq!(self.status.zero, false),
-                    TestOp::TestNegativeSet => assert_eq!(self.status.negative, true),
-                    TestOp::TestNegativeClear => assert_eq!(self.status.negative, false),
-                    TestOp::TestOverflowSet => assert_eq!(self.status.overflow, true),
-                    TestOp::TestOverflowClear => assert_eq!(self.status.overflow, false),
+                                        address += 1;
+                                        assert!(self.stack_pointer == self.bus.read_byte(address),     
+                                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
+                                            test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
+                                    },
+                    TestOp::TestCarrySet => assert!(self.status.carry, "Carry flag should be set"),
+                    TestOp::TestCarryClear => assert!(!self.status.carry, "Carry flag should not be set"),
+                    TestOp::TestZeroSet => assert!(self.status.zero, "Zero flag should be set"),
+                    TestOp::TestZeroClear => assert!(!self.status.zero, "Zero flag should not be set"),
+                    TestOp::TestNegativeSet => assert!(self.status.negative, "Negative flag should be set"),
+                    TestOp::TestNegativeClear => assert!(!self.status.negative, "Negative flag should not be set"),
+                    TestOp::TestOverflowSet => assert!(self.status.overflow, "Overflow flag should be set"),
+                    TestOp::TestOverflowClear => assert!(!self.status.overflow, "Overflow flag should not be set"),
+                    TestOp::TestDecimalSet => assert!(self.status.decimal, "Decimal flag should be set"),
+                    TestOp::TestDecimalClear => assert!(!self.status.decimal, "Decimal flag should not be set"),
+                    TestOp::TestInterruptSet => assert!(self.status.irq_disable, "Interrupt disable flag should be set"),
+                    TestOp::TestInterruptClear => assert!(!self.status.irq_disable, "Interrupt disable flag should not be set"),
+                    TestOp::TestBreakSet => assert!(self.status.brk, "Break flag should be set"),
+                    TestOp::TestBreakClear => assert!(!self.status.brk, "Break flag should not be set"),
                     TestOp::TestAddressContents => {
-                        address += 1;
-                        let test_address = self.bus.read_address(address);
-                        address += 2;
-                        let expected = self.bus.read_byte(address);
-                        assert!(self.bus.read_byte(test_address) == expected,
-                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  test_address, self.bus.read_byte(test_address), expected); 
-                    },
+                                        address += 1;
+                                        let test_address = self.bus.read_address(address);
+                                        address += 2;
+                                        let expected = self.bus.read_byte(address);
+                                        assert!(self.bus.read_byte(test_address) == expected,
+                                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
+                                            test_id, op_num,  test_address, self.bus.read_byte(test_address), expected); 
+                                    },
+
                 }
                 address += 1;
                 op_num += 1;

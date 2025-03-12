@@ -72,6 +72,25 @@
 .macro  TestOverflowClear
     .byte $37
 .endmacro
+.macro  TestDecimalSet
+    .byte $38
+.endmacro
+.macro  TestDecimalClear
+    .byte $39
+.endmacro
+.macro  TestInterruptSet
+    .byte $3a
+.endmacro
+.macro  TestInterruptClear
+    .byte $3b
+.endmacro
+.macro  TestBreakSet
+    .byte $3c
+.endmacro
+.macro  TestBreakClear
+    .byte $3d
+.endmacro
+
 
 .macro TestAddress address, value
     .byte $80

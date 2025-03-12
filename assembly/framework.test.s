@@ -2,13 +2,9 @@
 
 .include "test.inc"
 
+; basic test
     LDX #$ff
     LDA #$00
-    BEQ target
-    FAIL
-    LDX #01
-
-target:
 
     VRFY    :+
     JMP     :++
@@ -16,5 +12,6 @@ target:
 :   TestStart   $01
     TestEnd
 
+; End of all tests
 : HALT
     
