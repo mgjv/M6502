@@ -135,11 +135,13 @@ mod tests {
 
     fn build_assembly() {
         info!("Building assembly");
-        Command::new("make")
+        let status = Command::new("make")
             .arg("-C").arg("assembly") // chdir to assembly
             .arg("-j").arg("8") // run this many in parallel
-            .output()
+            .status()
             .expect("Make failed to run");
+
+        assert!(status.success(), "Make returned an error. Please run from command line to check")
     }
 
 }
