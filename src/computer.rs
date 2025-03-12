@@ -1,10 +1,10 @@
 mod cpu;
 mod memory;
-mod clock;
+pub mod clock;
 
 use cpu::CPU;
 use memory::Memory;
-use clock::{Clock, NormalClock, TickCount};
+use clock::*;
 
 use std::fmt::Write;
 
@@ -18,14 +18,14 @@ pub struct Computer<C: Clock> {
     clock: C,
 }
 
-impl Computer<NormalClock> {
-    pub fn new(rom_data: &[u8]) -> Self {
+impl<C: Clock> Computer<C> {
+    pub fn new(rom_data: &[u8], clock: C) -> Self {
 
         let cpu = CPU::new(Memory::new(), rom_data);
 
         let mut new_computer = Self { 
             cpu: cpu,
-            clock: NormalClock::new(DEFAULT_CLOCK_SPEED),
+            clock: clock,
         };
 
         // Run the computer, until interrupt
@@ -50,10 +50,8 @@ impl<C: Clock> Computer<C> {
     pub fn load_program(&mut self, address: u16, program: &[u8]) {
         self.cpu.load_program(address, program);
     }
-}
 
-// Formatting/Display functions
-impl<C: Clock> Computer<C> {
+    // Formatting/Display functions
 
     pub fn startup_message(&self) -> String {
         format!("6502 emulator - {} bytes memory", self.cpu.memory_size())
@@ -117,13 +115,13 @@ mod tests {
 
     // HELPERS
 
-    fn create_test_computer() -> Computer<NormalClock> {
+    fn create_test_computer() -> Computer<SpeedyClock> {
         MAKE_ASSEMBLY.call_once(build_assembly);
         let rom_file_name = Path::new("assembly/basic.rom");
         let rom = std::fs::read(rom_file_name).expect(
             format!("Was not able to load rom from {}", rom_file_name.display()).as_str()
         );
-        Computer::new(&rom)
+        Computer::new(&rom, SpeedyClock {})
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {

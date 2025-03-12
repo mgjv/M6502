@@ -3,6 +3,7 @@ mod computer;
 use std::path::PathBuf;
 
 use computer::Computer;
+use computer::clock::NormalClock;
 use clap::Parser;
 
 #[derive(Parser)]
@@ -32,7 +33,7 @@ fn main() {
     println!("Map: {}", map.display());
 
     let rom_data = read_bytes_from_file(cli.rom_file);
-    let mut computer = Computer::new(&rom_data);
+    let mut computer = Computer::new(&rom_data, NormalClock::default());
     show_debug(&computer.startup_message());
 
     show_debug(&computer.show_state());

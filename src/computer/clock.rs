@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 use std::thread::sleep;
 use std::fmt::Debug;
 
+use super::DEFAULT_CLOCK_SPEED;
+
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature
 pub type TickCount = u8;
 
@@ -10,12 +12,19 @@ pub trait Clock: Debug {
     fn tick(&mut self, tick_count: TickCount);
 }
 
+// A clock that has a clock speed, and ticks accordingly
 #[derive(Debug)]
 pub struct NormalClock {
     #[allow(dead_code)]
     speed: u32,
     interval: Duration,
     last_tick: Instant,
+}
+
+impl Default for NormalClock {
+    fn default() -> Self {
+        Self::new(DEFAULT_CLOCK_SPEED)
+    }
 }
 
 impl NormalClock {
@@ -46,4 +55,12 @@ impl Clock for NormalClock {
         }
         self.last_tick = next_tick;
     }
+}
+
+// A clock that does nothing at all to slow things down
+#[derive(Debug)]
+pub struct SpeedyClock {}
+
+impl Clock for SpeedyClock {
+    fn tick(&mut self, _: TickCount) {}
 }
