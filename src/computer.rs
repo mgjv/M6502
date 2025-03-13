@@ -105,6 +105,8 @@ mod tests {
     #[test_case("transfer_instructions"; "transfer instructions")] 
     #[test_case("stack"; "stack operation")]
     #[test_case("increment"; "increment and decrement")]
+    #[test_case("logical"; "logical operations")]
+    #[test_case("bitshift"; "bit shift operations")]
     #[test_case("add_with_carry"; "add with carry")]
     fn assembly(test_name: &str) {
         let _ = env_logger::builder().is_test(true).try_init();

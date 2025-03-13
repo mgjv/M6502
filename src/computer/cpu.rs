@@ -421,7 +421,18 @@ impl<B: Bus> CPU<B> {
             },
             Instruction::DEX => { self.set_x_index(self.x_index.wrapping_sub(1)) },
             Instruction::DEY => { self.set_y_index(self.y_index.wrapping_sub(1)) },
-            Instruction::EOR => todo!(),
+            Instruction::EOR => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.set_accumulator(self.accumulator ^ value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.set_accumulator(self.accumulator ^ value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::INC => {
                 match operand {
                     Operand::Address(address) => {
@@ -473,9 +484,33 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::LSR => todo!(),
-            Instruction::NOP => { },
-            Instruction::ORA => todo!(),
+            Instruction::LSR => {
+                match operand {
+                    Operand::Implied => {
+                        self.status.carry = self.accumulator & 0x01 != 0;
+                        self.set_accumulator(self.accumulator >> 1);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.status.carry = value & 0x01 != 0;
+                        self.store_at_address(address, value >> 1);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::NOP => { /* doesn't do anything */ },
+            Instruction::ORA => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.set_accumulator(self.accumulator | value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.set_accumulator(self.accumulator | value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::PHA => { self.push_stack(self.accumulator); },
             Instruction::PHP => { 
                 let mut status = self.status;
@@ -492,8 +527,38 @@ impl<B: Bus> CPU<B> {
                 // BRK flag should be cleared on pull
                 self.status.brk = false;
             },
-            Instruction::ROL => todo!(),
-            Instruction::ROR => todo!(),
+            Instruction::ROL => {
+                match operand {
+                    Operand::Implied => {
+                        let carry = self.status.carry;
+                        self.status.carry = self.accumulator & 0x80 != 0;
+                        self.set_accumulator((self.accumulator << 1) | (if carry { 1 } else { 0 }));
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        let carry = self.status.carry;
+                        self.status.carry = value & 0x80 != 0;
+                        self.store_at_address(address, (value << 1) | (if carry { 1 } else { 0 }));
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::ROR => {
+                match operand {
+                    Operand::Implied => {
+                        let carry = self.status.carry;
+                        self.status.carry = self.accumulator & 0x01 != 0;
+                        self.set_accumulator((self.accumulator >> 1) | (if carry { 0x80 } else { 0 }));
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        let carry = self.status.carry;
+                        self.status.carry = value & 0x01 != 0;
+                        self.store_at_address(address, (value >> 1) | (if carry { 0x80 } else { 0 }));
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::RTI => { self.return_from_interrupt(); },
             Instruction::RTS => todo!(),
             Instruction::SBC => {
