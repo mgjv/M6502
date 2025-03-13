@@ -2,7 +2,22 @@
 
 .include "test.inc"
 
-    LDX #$de        ; Immediate addressing mode
+; test we can use a label as address
+    LDA #$ab
+    STA variable
+    LDX #$00
+    LDX variable
+
+    VRFY  :+
+    JMP     :++
+
+:   TestStart   $ff
+    TestAddress variable, $ab
+    TestX       $ab
+    TestEnd
+
+; Test specific address modes
+:   LDX #$de        ; Immediate addressing mode
     STX $10         ; Zero page addressing mode
     STX $0100       ; Absolute addressing mode
     LDY #$04
@@ -19,6 +34,7 @@
     TestAddress $0014, $de
     TestEnd
 
+; test specific address modes
 :   LDY #$ab        ; Immediate addressing mode
     STY $70         ; Zero page addressing mode
     STY $0200       ; Absolute addressing mode
@@ -36,7 +52,7 @@
     TestAddress $0063, $ab
     TestEnd
 
-
+; test specific address modes
 :   LDA #$7a        ; Immediate addressing mode
     STA $70         ; Zero page addressing mode
     STA $0300       ; Absolute addressing mode
@@ -62,8 +78,7 @@
     TestAddress $0314, $7a
     TestEnd
 
-; Test relative mode
-
+; Test relative mode, conditional branching only
 :   LDA #$ff
     LDX #$ff
     LDY #$ff
@@ -93,5 +108,35 @@ loc3:
     TestEnd
 
 
+; Indirect addressing ZeroPage,X pre-index
+:   LDA #$20    ; low byte
+    STA $13
+    LDA #$40    ; high byte
+    STA $14
+    LDX #$03
+    LDA #$ee
+    STA ($10,X)
+
+; Indirect addressing Zeropage,Y post-index
+    LDA #$60    ; low byte
+    STA $20
+    LDA #$40    ; high byte
+    STA $21
+    LDY #$03
+    LDA #$cc
+    STA ($20),Y
+
+    VRFY    :+
+    JMP     :++
+
+:   TestStart   $04
+    TestAddress $4020, $ee
+    TestAddress $4063, $cc
+    TestEnd
+
+
 ; End of all tests
 :   HALT
+
+.data
+variable: .byte $00

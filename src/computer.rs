@@ -103,12 +103,14 @@ mod tests {
     #[test_case("branches"; "conditional branches")]
     #[test_case("address_modes"; "address modes")] 
     #[test_case("transfer_instructions"; "transfer instructions")] 
+    #[test_case("stack"; "stack operation")]
     #[test_case("add_with_carry"; "add with carry")]
     fn assembly(test_name: &str) {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut computer = create_test_computer();
         let file_name = format!("assembly/{}.test.bin", test_name);
         let program = read_program(file_name.as_str());
+        // NOTE: See assembly/test.cfg
         let start_address = 0x1000;
         debug!("Loading Assembly test {}", file_name);
         computer.load_program(start_address, &program);

@@ -83,32 +83,6 @@
     TestAddress $00a1, $33
     TestEnd
 
-; Indirect addressing ZeroPage,X pre-index
-:   LDA #$20    ; low byte
-    STA $0013
-    LDA #$40    ; high byte
-    STA $0014
-    LDX #$03
-    LDA #$ee
-    STA ($10,X)
-
-; Indirect addressing Zeropage,Y post-index
-    LDA #$60    ; low byte
-    STA $0020
-    LDA #$40    ; high byte
-    STA $0021
-    LDY #$03
-    LDA #$cc
-    STA ($20),Y
-
-    VRFY    :+
-    JMP     :++
-
-:   TestStart   $04
-    TestAddress $4020, $ee
-    TestAddress $4063, $cc
-    TestEnd
-
 ; TAX, TAY, TXA, TYA
 :   LDX #$66
     TXA

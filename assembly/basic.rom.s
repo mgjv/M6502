@@ -8,6 +8,7 @@ reset:
     LDX #$ff
     TXS
     ; Make sure some flags are in a known state
+    SEI
     CLD
     CLC
     CLV
@@ -20,6 +21,7 @@ reset:
 
 nmi:
     NOP   
+
 irq:
     ; Save the state of the registers
     PHA

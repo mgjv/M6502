@@ -13,5 +13,4 @@
     TestEnd
 
 ; End of all tests
-: HALT
-    
+:   HALT

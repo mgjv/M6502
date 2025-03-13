@@ -243,6 +243,7 @@ impl<B: Bus> CPU<B> {
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
 
+                // TODO: provide custom debug stuff for address_mode
                 debug!("{:04x}: opcode {:02x} -> {:02x?}/{:02x?}/{:02x?} -> {:02x?} {:02x?}", self.program_counter, opcode, instruction, address_mode, operand_bytes, instruction, operand);
 
                 // Advance the program counter by the correct number of bytes
@@ -405,12 +406,12 @@ impl<B: Bus> CPU<B> {
             Instruction::CPX => todo!(),
             Instruction::CPY => todo!(),
             Instruction::DEC => todo!(),
-            Instruction::DEX => { self.x_index = self.x_index.wrapping_sub(1) },
-            Instruction::DEY => { self.y_index = self.y_index.wrapping_sub(1) },
+            Instruction::DEX => { self.set_x_index(self.x_index.wrapping_sub(1)) },
+            Instruction::DEY => { self.set_y_index(self.y_index.wrapping_sub(1)) },
             Instruction::EOR => todo!(),
             Instruction::INC => todo!(),
-            Instruction::INX => { self.x_index = self.x_index.wrapping_add(1) },
-            Instruction::INY => { self.y_index = self.y_index.wrapping_add(1) },
+            Instruction::INX => { self.set_x_index(self.x_index.wrapping_add(1)) },
+            Instruction::INY => { self.set_y_index(self.y_index.wrapping_add(1)) },
             Instruction::JMP => { self.do_jump(instruction, operand); },
             Instruction::JSR => todo!(),
             Instruction::LDA => {
@@ -465,6 +466,8 @@ impl<B: Bus> CPU<B> {
             Instruction::PLP => { 
                 let value = self.pull_stack();
                 self.status = Status::from_byte(value);
+                // BRK flag should be cleared on pull
+                self.status.brk = false;
             },
             Instruction::ROL => todo!(),
             Instruction::ROR => todo!(),
@@ -574,16 +577,25 @@ impl<B: Bus> CPU<B> {
         self.status.brk = false;
     }
 
-
+    // Push a new value on the stack, decrementing the stack pointer
     fn push_stack(&mut self, value: u8) {
         let address = bytes_to_address(self.stack_pointer, 0x01);
         self.bus.write_byte(address, value);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
     }
 
+    // Pull the 'top' value off the stack, incrementing the stack pointer
     fn pull_stack(&mut self) -> u8 {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let address = bytes_to_address(self.stack_pointer, 0x01);
+        self.bus.read_byte(address)
+    }
+
+    #[cfg(test)]
+    // get the value on the stack at position n, where n = 1 is the 'top'
+    fn peek_stack(&self, position: u8) -> u8 {
+        let stack_position = self.stack_pointer.wrapping_add(position);
+        let address = bytes_to_address(stack_position, 0x01);
         self.bus.read_byte(address)
     }
 
@@ -1111,6 +1123,8 @@ pub mod tests {
         TestBreakClear,
 
         TestAddressContents,
+        TestStackContents,
+        TestStackPointer,
     }
 
     impl TryFrom<u8> for TestOp {
@@ -1139,6 +1153,8 @@ pub mod tests {
                 0x3c => Ok(TestOp::TestBreakSet),
                 0x3d => Ok(TestOp::TestBreakClear),
                 0x80 => Ok(TestOp::TestAddressContents),
+                0x88 => Ok(TestOp::TestStackContents),
+                0x89 => Ok(TestOp::TestStackPointer),
                 _ => Err(()),
             }
         }
@@ -1211,15 +1227,35 @@ pub mod tests {
                     TestOp::TestBreakSet => assert!(self.status.brk, "Break flag should be set"),
                     TestOp::TestBreakClear => assert!(!self.status.brk, "Break flag should not be set"),
                     TestOp::TestAddressContents => {
-                                        address += 1;
-                                        let test_address = self.bus.read_address(address);
-                                        address += 2;
-                                        let expected = self.bus.read_byte(address);
-                                        assert!(self.bus.read_byte(test_address) == expected,
-                                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                                            test_id, op_num,  test_address, self.bus.read_byte(test_address), expected); 
-                                    },
+                        address += 1;
+                        let test_address = self.bus.read_address(address);
+                        address += 2;
+                        let expected = self.bus.read_byte(address);
+                        let actual = self.bus.read_byte(test_address);
 
+                        assert!(actual == expected,
+                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
+                            test_id, op_num,  test_address, self.bus.read_byte(test_address), expected);
+                    },
+                    TestOp::TestStackContents => {
+                        address += 1;
+                        let position = self.bus.read_byte(address);
+                        address += 1;
+                        let expected = self.bus.read_byte(address);
+                        let actual = self.peek_stack(position);
+
+                        assert!(actual == expected,
+                            "({:02x}:{:02x}) Assertion failed on stack at position {:02x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
+                            test_id, op_num, position, actual, expected);
+                    },
+                    TestOp::TestStackPointer => {
+                        address += 1;
+                        let expected = self.bus.read_byte(address);
+
+                        assert!(self.stack_pointer == expected,
+                            "({:02x}:{:02x}) Assertion failed on stack pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
+                            test_id, op_num, self.stack_pointer, expected);
+                    }
                 }
                 address += 1;
                 op_num += 1;
@@ -1236,8 +1272,8 @@ pub mod tests {
             // self.show_program_memory(&mut b);
             // writeln!(b, "Reset memory:");
             // self.show_reset_memory(&mut b);
-            // writeln!(b, "Stack:");
-            // self.show_stack(&mut b);
+            writeln!(b, "Stack:");
+            self.show_stack(&mut b);
     
             b
         }

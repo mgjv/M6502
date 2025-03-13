@@ -91,11 +91,21 @@
     .byte $3d
 .endmacro
 
-
 .macro TestAddress address, value
     .byte $80
     .addr address
     .byte value
+.endmacro
+
+; position 0x01 is the 'top' of the stack
+.macro TestStack position, value
+    .byte $88, position, value
+.endmacro
+
+; Test that the stack pointer has a particular value.
+; Only used to test TXS, TSX
+.macro TestStackPointer value
+    .byte $89, value
 .endmacro
 
 ; This overwrites X.
