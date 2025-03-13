@@ -24,8 +24,10 @@
 ; which ends when TestEnd is encountered
 
 ; Identify the start of a test. Tests fail if this is not present
+; This is deliberately an unimplemented c6502 value, so we get an error if
+; the program_counter ends up on one of these
 .macro  TestStart id
-    .byte $c0, id
+    .byte $c2, id
 .endmacro
 
 ; Use the most likely "wrong" byte value for the end marker

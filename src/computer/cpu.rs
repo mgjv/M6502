@@ -267,6 +267,9 @@ impl<B: Bus> CPU<B> {
             None => {
                 // This shouldn't happen
                 error!("{:04x}: Unused opcode {:02x} found", self.program_counter, opcode);
+                // TODO Decide what should happen here in production code
+                #[cfg(test)]
+                assert!(false);
                 None
             },
         }
@@ -405,11 +408,31 @@ impl<B: Bus> CPU<B> {
             Instruction::CMP => todo!(),
             Instruction::CPX => todo!(),
             Instruction::CPY => todo!(),
-            Instruction::DEC => todo!(),
+            Instruction::DEC => {
+                match operand {
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        let new_value = value.wrapping_sub(1);
+                        self.update_zero_and_negative_flags(new_value);
+                        self.bus.write_byte(address, new_value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::DEX => { self.set_x_index(self.x_index.wrapping_sub(1)) },
             Instruction::DEY => { self.set_y_index(self.y_index.wrapping_sub(1)) },
             Instruction::EOR => todo!(),
-            Instruction::INC => todo!(),
+            Instruction::INC => {
+                match operand {
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        let new_value = value.wrapping_add(1);
+                        self.update_zero_and_negative_flags(new_value);
+                        self.bus.write_byte(address, new_value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::INX => { self.set_x_index(self.x_index.wrapping_add(1)) },
             Instruction::INY => { self.set_y_index(self.y_index.wrapping_add(1)) },
             Instruction::JMP => { self.do_jump(instruction, operand); },
@@ -1132,7 +1155,7 @@ pub mod tests {
 
         fn try_from(value: u8) -> Result<Self, Self::Error> {
             match value {
-                0xc0 => Ok(TestOp::TestStart),
+                0xc2 => Ok(TestOp::TestStart),
                 0x00 => Ok(TestOp::TestEnd),
                 0x01 => Ok(TestOp::TestA),
                 0x02 => Ok(TestOp::TestX),
