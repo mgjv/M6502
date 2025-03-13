@@ -2,5 +2,6 @@
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
     ],
-    "C_Cpp.autoAddFileAssociations": false
+    "C_Cpp.autoAddFileAssociations": false,
+    "explorer.excludeGitIgnore": true
 }
