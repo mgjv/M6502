@@ -102,12 +102,13 @@ mod tests {
     #[test_case("flags"; "status flags")]
     #[test_case("branches"; "conditional branches")]
     #[test_case("address_modes"; "address modes")] 
-    #[test_case("transfer_instructions"; "transfer instructions")] 
+    #[test_case("transfer"; "transfer instructions")] 
     #[test_case("stack"; "stack operation")]
     #[test_case("increment"; "increment and decrement")]
-    #[test_case("logical"; "logical operations")]
-    #[test_case("bitshift"; "bit shift operations")]
+    #[test_case("logical"; "logical instructions")]
+    #[test_case("bitshift"; "bit shift insgtructions")]
     #[test_case("add_with_carry"; "add with carry")]
+    #[test_case("comparison"; "comparison instructions")]
     fn assembly(test_name: &str) {
         let _ = env_logger::builder().is_test(true).try_init();
         let mut computer = create_test_computer();

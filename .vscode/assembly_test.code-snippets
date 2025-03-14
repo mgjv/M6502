@@ -34,6 +34,18 @@
 			"",
 			"; End of all tests",
 			":   HALT",
+			"",
+			".data",
+			"; Some result variables to prevent needing too many test blocks",
+			"    r1: .byte \\$de",
+			"    r2: .byte \\$ad",
+			"    r3: .byte \\$be",
+			"    r4: .byte \\$af",
+			"",
+			"    a1: .byte \\$de",
+			"    a2: .byte \\$ad",
+			"    a3: .byte \\$be",
+			"    a4: .byte \\$ef",
 		],
 		"description": "Assembly test template"
 	}

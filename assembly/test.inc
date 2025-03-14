@@ -110,18 +110,53 @@
     .byte $89, value
 .endmacro
 
+
+; UTILITY MACROS
+
+; Store status
+.macro StStatus address, mask
+    PHP ; push the status register
+    PHA ; save current value of A
+    PHP ; push the status register again to copy into A
+    PLA ; pull the status register into A
+    .ifnblank mask
+    AND #mask ; mask the bits we want
+    .else
+    AND #%11000011 ; mask all but N V Z and C
+    .endif
+    STA address ; and, finally, store it
+
+    PLA ; restore original value of A
+    PLP ; restore the status register
+.endmacro
+
 ; This overwrites X.
 ; FIXME Also, this does not work at the moment
 ; FIXME https://forums.atariage.com/topic/305708-saving-registers-in-a-subroutine/
-.macro ClearMemory address, size
-    ;PHX
-;     PHA
-; :   LDX size
-;     LDA #$00
-;     STA address, X
-;     DEX
-;     BEQ :+
-;     JMP :-
-; :   PLA
-    ;PLX
+.macro ClearMemory address, size, value
+    .local loop
+    .local end
+
+    PHA ; save current value of A
+    TXA
+    PHA ; Save current value of X
+
+    .ifnblank value
+    LDA #value
+    .else
+    LDA #$00
+    .endif
+    LDX #$00       ; start at 0
+loop:   
+    STA address,X
+    INX
+    CPX #size
+    BEQ end         ; bail out before size
+    JMP loop
+
+end:   
+    PLA
+    TAX ; restore original X
+    PLA ; restore original A
+    
 .endmacro

@@ -405,9 +405,42 @@ impl<B: Bus> CPU<B> {
             Instruction::CLD => { self.status.decimal = false; },
             Instruction::CLI => { self.status.irq_disable = false; },
             Instruction::CLV => { self.status.overflow = false; },
-            Instruction::CMP => todo!(),
-            Instruction::CPX => todo!(),
-            Instruction::CPY => todo!(),
+            Instruction::CMP => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.compare(self.accumulator, value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.compare(self.accumulator, value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::CPX => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.compare(self.x_index, value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.compare(self.x_index, value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
+            Instruction::CPY => {
+                match operand {
+                    Operand::Immediate(value) => {
+                        self.compare(self.y_index, value);
+                    },
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.compare(self.y_index, value);
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::DEC => {
                 match operand {
                     Operand::Address(address) => {
@@ -419,8 +452,14 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::DEX => { self.set_x_index(self.x_index.wrapping_sub(1)) },
-            Instruction::DEY => { self.set_y_index(self.y_index.wrapping_sub(1)) },
+            Instruction::DEX => {
+                let new_x = self.x_index.wrapping_sub(1);
+                self.set_x_index(new_x);
+            },
+            Instruction::DEY => {
+                let new_y = self.y_index.wrapping_sub(1);
+                self.set_y_index(new_y); 
+            },
             Instruction::EOR => {
                 match operand {
                     Operand::Immediate(value) => {
@@ -515,6 +554,7 @@ impl<B: Bus> CPU<B> {
             Instruction::PHP => { 
                 let mut status = self.status;
                 status.brk = true;
+                // debug!("PHP: pushing status %{:08b}", status.as_byte());
                 self.push_stack(status.as_byte());
             },
             Instruction::PLA => { 
@@ -526,6 +566,7 @@ impl<B: Bus> CPU<B> {
                 self.status = Status::from_byte(value);
                 // BRK flag should be cleared on pull
                 self.status.brk = false;
+                // debug!("PLP: setting status %{:08b}", self.status.as_byte());
             },
             Instruction::ROL => {
                 match operand {
@@ -690,7 +731,7 @@ impl<B: Bus> CPU<B> {
     fn do_jump(&mut self, instruction: Instruction, operand: Operand) {
         match operand {
             Operand::Address(address) => {
-                debug!("Jumping to {:04x}", address);
+                // debug!("Jumping to {:04x}", address);
                 self.program_counter = address;
             },
             _ => illegal_opcode(instruction, operand),
@@ -726,6 +767,13 @@ impl<B: Bus> CPU<B> {
 
     /* More complex operations than fit in a few lines */
 
+    fn compare(&mut self, register: u8, value: u8) {
+        let result = register.wrapping_sub(value);
+        self.status.carry = register >= value;
+        // debug!("Comparing {:02x} and {:02x} resulting in {:02x}", register, value, result);
+        self.update_zero_and_negative_flags(result);
+    }
+
     // FIXME Implement decimal mode
     fn add_with_carry(&mut self, value: u8) {
         let a = self.accumulator;
@@ -734,22 +782,26 @@ impl<B: Bus> CPU<B> {
         let new_a = a.wrapping_add(value).wrapping_add(c);
 
         self.status.carry = new_a < a 
-                    || (new_a == 0 && c == 0x01) 
-                    || (value == 0xff && c == 0x01);
+                    || (new_a == 0 && c == 1) 
+                    || (value == 0xff && c == 1);
         self.status.overflow = (a > 0x7f && value > 0x7f && new_a < 0x80) 
                     || (a < 0x80 && value < 0x80 && new_a > 0x7f);
 
         self.set_accumulator(new_a);
     }
 
-    // FIXME Implement decimal mode, and fix flags?
+    // FIXME Implement decimal mode
+    // FIXME This panics if value == 0xff and carry is not set
     fn subtract_with_carry(&mut self, value: u8) {
         let a = self.accumulator;
         let c = u8::from(self.status.carry); // either 0 or 1
 
-        let new_a = a.wrapping_sub(value).wrapping_sub(1 - c);
+        let new_a = a.wrapping_add(!value).wrapping_add(c);
 
-        self.status.carry = a >= value + (1 - c);
+        self.status.carry = a >= value;
+        // self.status.carry = new_a > a
+        //             || (new_a < a && c == 1)
+        //             || (value == 0xff && c == 0);
         self.status.overflow = (a ^ new_a) & 0x80 != 0 && (a ^ value) & 0x80 != 0;
 
         self.set_accumulator(new_a);
@@ -1276,30 +1328,30 @@ pub mod tests {
                     TestOp::TestStart => assert!(false, "Nested test start at address {:04x}", address),
                     TestOp::TestEnd => break,
                     TestOp::TestA => {
-                                        address += 1;
-                                        // assert_eq!(self.accumulator, self.bus.read_byte(address));
-                                        assert!(self.accumulator == self.bus.read_byte(address),
-                                            "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
-                                            test_id, op_num, self.accumulator, self.bus.read_byte(address));
-                                    },
+                        address += 1;
+                        // assert_eq!(self.accumulator, self.bus.read_byte(address));
+                        assert!(self.accumulator == self.bus.read_byte(address),
+                            "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                            test_id, op_num, self.accumulator, self.bus.read_byte(address));
+                    },
                     TestOp::TestX  => { 
-                                        address += 1;
-                                        assert!(self.x_index == self.bus.read_byte(address), 
-                                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
-                                            test_id, op_num,  self.x_index, self.bus.read_byte(address));   
-                                    },
+                        address += 1;
+                        assert!(self.x_index == self.bus.read_byte(address), 
+                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
+                            test_id, op_num,  self.x_index, self.bus.read_byte(address));   
+                    },
                     TestOp::TestY  => { 
-                                        address += 1;
-                                        assert!(self.y_index == self.bus.read_byte(address), 
-                                            "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                                            test_id, op_num,  self.y_index, self.bus.read_byte(address));
-                                    },
+                        address += 1;
+                        assert!(self.y_index == self.bus.read_byte(address), 
+                            "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
+                            test_id, op_num,  self.y_index, self.bus.read_byte(address));
+                    },
                     TestOp::TestSP  => { 
-                                        address += 1;
-                                        assert!(self.stack_pointer == self.bus.read_byte(address),     
-                                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                                            test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
-                                    },
+                        address += 1;
+                        assert!(self.stack_pointer == self.bus.read_byte(address),     
+                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
+                            test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
+                    },
                     TestOp::TestCarrySet => assert!(self.status.carry, "Carry flag should be set"),
                     TestOp::TestCarryClear => assert!(!self.status.carry, "Carry flag should not be set"),
                     TestOp::TestZeroSet => assert!(self.status.zero, "Zero flag should be set"),

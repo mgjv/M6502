@@ -2,6 +2,8 @@
 
 ; Also see some tests for flags in 'flags' test
 
+; TODO This needs many more tests
+
 .include "test.inc"
 
 ; Basic ADC flag setting

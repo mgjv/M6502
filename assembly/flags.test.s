@@ -3,6 +3,7 @@
 .include "test.inc"
 
 ; TODO Add tests for carry flag
+; TODO Add tests for decimal and interrupt flags
 
 ; Ensure LDA sets zero flag
     LDA #$00

@@ -316,7 +316,7 @@
     r1: .byte $de
     r2: .byte $ad
     r3: .byte $be
-    r4: .byte $af
+    r4: .byte $ef
 
     a1: .byte $de
     a2: .byte $ad
