@@ -9,10 +9,8 @@ use inline_colorization::*;
 
 use std::fmt;
 
-use crate::computer::memory::address_to_bytes;
-
 use super::clock::TickCount;
-use super::memory::{Bus, bytes_to_address};
+use super::memory::*;
 
 
 // Standard memory locations to fetch addresses from
@@ -167,28 +165,28 @@ impl<B: Bus> CPU<B> {
     fn get_operand(&self, addressmode: AddressMode, bytes: [u8; 2]) -> Operand {
         match addressmode {
             AddressMode::Accumulator => Operand::Implied,
-            AddressMode::Absolute    => Operand::Address(bytes_to_address(bytes[0], bytes[1])),
-            AddressMode::AbsoluteX   => Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.x_index.into())),
-            AddressMode::AbsoluteY   => Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into())),
+            AddressMode::Absolute    => Operand::Address(bytes_to_address(&bytes)),
+            AddressMode::AbsoluteX   => Operand::Address(bytes_to_address(&bytes).wrapping_add(self.x_index.into())),
+            AddressMode::AbsoluteY   => Operand::Address(bytes_to_address(&bytes).wrapping_add(self.y_index.into())),
             AddressMode::Immediate   => Operand::Immediate(bytes[0]),
             AddressMode::Implied     => Operand::Implied,
             AddressMode::Indirect    => {
-                let address = bytes_to_address(bytes[0], bytes[1]);
-                let bytes = self.bus.read_two_bytes(address);
-                Operand::Address(bytes_to_address(bytes[0], bytes[1]))
+                let address = bytes_to_address(&bytes);
+                let new_bytes = self.bus.read_two_bytes(address);
+                Operand::Address(bytes_to_address(&new_bytes))
             },
             AddressMode::IndirectX   => {
                 // Add X to zero page address stored in bytes[0]. Return address stored there
-                let address = bytes_to_address(bytes[0].wrapping_add(self.x_index), 0x00);
-                let bytes = self.bus.read_two_bytes(address);
-                Operand::Address(bytes_to_address(bytes[0], bytes[1]))
+                let address = lo_hi_to_address(bytes[0].wrapping_add(self.x_index), 0x00);
+                let new_bytes = self.bus.read_two_bytes(address);
+                Operand::Address(bytes_to_address(&new_bytes))
             },
             AddressMode::IndirectY   => {
                 // Add contents of Y to address stored in zero page at byte[0] and byte[0] + 1, and return
-                let address = bytes_to_address(bytes[0], 0x00);
-                let bytes = self.bus.read_two_bytes(address);
+                let address = lo_hi_to_address(bytes[0], 0x00);
+                let new_bytes = self.bus.read_two_bytes(address);
                 //debug!("read from {:04x}: address bytes: {:02x?}", address, bytes);
-                Operand::Address(bytes_to_address(bytes[0], bytes[1]).wrapping_add(self.y_index.into()))
+                Operand::Address(bytes_to_address(&new_bytes).wrapping_add(self.y_index.into()))
             },
             AddressMode::Relative    => {
                 // offset is a 2's complement signed byte
@@ -197,9 +195,9 @@ impl<B: Bus> CPU<B> {
                 let address = self.program_counter.wrapping_add(2).wrapping_add(offset as u16);
                 Operand::Address(address)
             },
-            AddressMode::Zeropage    => Operand::Address(bytes_to_address(bytes[0], 0)),
-            AddressMode::ZeropageX   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.x_index.into())),
-            AddressMode::ZeropageY   => Operand::Address(bytes_to_address(bytes[0], 0).wrapping_add(self.y_index.into())),
+            AddressMode::Zeropage    => Operand::Address(lo_hi_to_address(bytes[0], 0)),
+            AddressMode::ZeropageX   => Operand::Address(lo_hi_to_address(bytes[0], 0).wrapping_add(self.x_index.into())),
+            AddressMode::ZeropageY   => Operand::Address(lo_hi_to_address(bytes[0], 0).wrapping_add(self.y_index.into())),
         }
     }
 
@@ -538,7 +536,7 @@ impl<B: Bus> CPU<B> {
             Instruction::RTS => {
                 let hi = self.pull_stack();
                 let lo = self.pull_stack();
-                let address = bytes_to_address(lo, hi);
+                let address = lo_hi_to_address(lo, hi);
                 self.program_counter = address;
             },
             Instruction::SBC => {
@@ -657,7 +655,7 @@ impl<B: Bus> CPU<B> {
         let status = self.pull_stack();
         let low = self.pull_stack();
         let high = self.pull_stack();
-        self.program_counter = bytes_to_address(high, low);
+        self.program_counter = lo_hi_to_address(high, low);
         self.status = Status::from_byte(status);
         // Ensure brk is always false after a hardware restore
         self.status.brk = false;
@@ -665,19 +663,15 @@ impl<B: Bus> CPU<B> {
 
     // Push a new value on the stack, decrementing the stack pointer
     fn push_stack(&mut self, value: u8) {
-        debug!("\tStack Push: {:02x} -> {:02x}", self.stack_pointer, value);
-        let address = bytes_to_address(self.stack_pointer, 0x01);
+        let address = lo_hi_to_address(self.stack_pointer, 0x01);
         self.bus.write_byte(address, value);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
     }
 
     // Pull the 'top' value off the stack, incrementing the stack pointer
     fn pull_stack(&mut self) -> u8 {
-        debug!("\tStack Pull: {:02x} <- {:02x}",
-            self.stack_pointer.wrapping_add(1),
-            self.bus.read_byte(bytes_to_address(self.stack_pointer.wrapping_add(1), 0x01)));
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
-        let address = bytes_to_address(self.stack_pointer, 0x01);
+        let address = lo_hi_to_address(self.stack_pointer, 0x01);
         self.bus.read_byte(address)
 
     }
@@ -686,7 +680,7 @@ impl<B: Bus> CPU<B> {
     // get the value on the stack at position n, where n = 1 is the 'top'
     fn peek_stack(&self, position: u8) -> u8 {
         let stack_position = self.stack_pointer.wrapping_add(position);
-        let address = bytes_to_address(stack_position, 0x01);
+        let address = lo_hi_to_address(stack_position, 0x01);
         self.bus.read_byte(address)
     }
 

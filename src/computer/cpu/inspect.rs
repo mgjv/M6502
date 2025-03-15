@@ -46,7 +46,7 @@ impl<B: Bus> CPU<B> {
     }
 
     pub fn show_stack<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        let stack_address = bytes_to_address(self.stack_pointer, 0x01);
+        let stack_address = lo_hi_to_address(self.stack_pointer, 0x01);
         self.show_memory(b, stack_address)
     }
 

@@ -10,6 +10,7 @@ use std::fmt::Write;
 
 // TODO Work on memory mapping in memory.rs to allow smaller memory
 // while still providing the needed vectors at the end of memory space
+// IOW, maybe implement a 'proper' address and data bus
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
 #[derive(Debug)]
@@ -94,9 +95,6 @@ mod tests {
         let computer = create_test_computer();
         print!("{}", computer.startup_message());
     }
-
-    // TODO write a test to check that the test cases are there
-    // maybe run make automatically?
 
     #[test_case("framework"; "test framework")]
     #[test_case("jump"; "jump and return")]
