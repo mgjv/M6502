@@ -103,13 +103,13 @@ impl<B: Bus> CPU<B> {
         match decode_instruction(opcode) {
             // FIXME This isn't the right implementation for BRK
             Some((Instruction::BRK, _, _)) => {
-                debug!("{:04x}: opcode {:02x} -> BRK/Implied", self.program_counter, opcode);
+                debug!("{:04x}:{:02x} -> BRK  -> BRK", self.program_counter, opcode);
                 self.execute_instruction(Instruction::BRK, Operand::Implied);
                 None
             },
             #[cfg(test)]
             Some((Instruction::HALT, _, _)) => {
-                debug!("{:04x}: opcode {:02x} -> HALT", self.program_counter, opcode);
+                debug!("{:04x}:{:02x} -> HALT", self.program_counter, opcode);
                 None
             },
             #[cfg(test)]
@@ -132,7 +132,8 @@ impl<B: Bus> CPU<B> {
 
                 // Advance the program counter by the correct number of bytes
                 // This is done before the instruction is executed, so that the instruction can
-                // modify the program counter if needed
+                // modify the program counter if needed, without running the risk that this
+                // overwrites it again
                 self.program_counter += 1 + operand_size;
 
                 // update the state of memory and CPU
@@ -373,9 +374,11 @@ impl<B: Bus> CPU<B> {
             Instruction::JSR => {
                 match operand {
                     Operand::Address(address) => {
-                        let return_address = self.program_counter.wrapping_sub(1);
-                        self.push_stack((return_address >> 8) as u8);
-                        self.push_stack(return_address as u8);
+                        // program counter already points to next instruction
+                        let return_address = self.program_counter;
+                        let bytes = address_to_bytes(return_address);
+                        self.push_stack(bytes[0]);
+                        self.push_stack(bytes[1]);
                         self.program_counter = address;
                     },
                     _ => illegal_opcode(instruction, operand),
@@ -495,7 +498,12 @@ impl<B: Bus> CPU<B> {
                 }
             },
             Instruction::RTI => { self.return_from_interrupt(); },
-            Instruction::RTS => todo!(),
+            Instruction::RTS => {
+                let hi = self.pull_stack();
+                let lo = self.pull_stack();
+                let address = bytes_to_address(lo, hi);
+                self.program_counter = address;
+            },
             Instruction::SBC => {
                 match operand {
                     Operand::Immediate(value) => {

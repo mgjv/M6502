@@ -99,6 +99,7 @@ mod tests {
     // maybe run make automatically?
 
     #[test_case("framework"; "test framework")]
+    #[test_case("jump"; "jump and return")]
     #[test_case("flags"; "status flags")]
     #[test_case("branches"; "conditional branches")]
     #[test_case("address_modes"; "address modes")]

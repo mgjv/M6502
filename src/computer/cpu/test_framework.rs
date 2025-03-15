@@ -51,9 +51,9 @@ impl TestOp {
             TestOp::TestStart => format!("Test Start {:02x}", bytes[0]),
             TestOp::TestEnd => format!("Test End"),
 
-            TestOp::TestA => format!("Test A == {:02x}", bytes[0]),
-            TestOp::TestX => format!("Test X == {:02x}", bytes[0]),
-            TestOp::TestY => format!("Test Y == {:02x}", bytes[0]),
+            TestOp::TestA => format!("Test A == ${:02x}", bytes[0]),
+            TestOp::TestX => format!("Test X == ${:02x}", bytes[0]),
+            TestOp::TestY => format!("Test Y == ${:02x}", bytes[0]),
 
             TestOp::TestCarrySet => format!("Test CarrySet"),
             TestOp::TestCarryClear => format!("Test CarryClear"),
@@ -71,11 +71,11 @@ impl TestOp {
             TestOp::TestBreakClear => format!("Test BreakClear"),
 
             TestOp::TestAddressContents =>
-                format!("Test AddressContents({:02x}{:02x}) = {:02x}", bytes[1], bytes[0], bytes[3]),
+                format!("Test AddressContents(${:02x}{:02x}) == ${:02x}", bytes[1], bytes[0], bytes[2]),
             TestOp::TestStackContents =>
-                format!("Test StackContents({:02x}) = {:02x}", bytes[1], bytes[0]),
+                format!("Test StackContents(${:02x}) == ${:02x}", bytes[1], bytes[0]),
             TestOp::TestStackPointer =>
-                format!("Test StackPointer = {:02x}", bytes[0]),
+                format!("Test StackPointer == ${:02x}", bytes[0]),
         }
     }
 

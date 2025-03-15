@@ -10,7 +10,7 @@ pub fn bytes_to_address(lo: u8, hi: u8) -> u16 {
     u16::from_le_bytes([lo, hi])
 }
 #[allow(dead_code)]
-// Returns an array in little endian order
+// Returns an array in little endian order, i.e. lo, hi
 pub fn address_to_bytes(address: u16) -> [u8; 2] {
     address.to_le_bytes()
 }
