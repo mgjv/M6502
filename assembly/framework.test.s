@@ -3,7 +3,6 @@
 .include "test.inc"
 
 ; Test StStatus
-; TODO probably should test that status register is (almost) unaffected
     LDA #$7f
     ADC #$01 ; This should set V and N and clear Z (result $80 = -128)
     STA a1
@@ -29,6 +28,39 @@
     TestAddress r4, %00000011
     TestEnd
 
+; Test that StStatus leaves the flags alone
+:   LDA #$7f
+    ADC #$01 ; This should set V and N and clear Z (result $80 = -128)
+    STA a1
+    SEC
+    SED
+    SEI
+
+    VRFY    :+
+
+    StStatus a4
+
+    VRFY    :++
+    JMP     :+++
+
+:   TestStart $02
+    TestCarrySet
+    TestDecimalSet
+    TestInterruptSet
+    TestOverflowSet
+    TestNegativeSet
+    TestZeroClear
+    TestEnd
+
+:   TestStart $03
+    TestCarrySet
+    TestDecimalSet
+    TestInterruptSet
+    TestOverflowSet
+    TestNegativeSet
+    TestZeroClear
+    TestEnd
+
 ; Test memory clearing
 :   LDA #$ff ; put a marker value in the test locations
     STA r1
@@ -42,12 +74,12 @@
     VRFY    :++
     JMP     :+++
 
-:   TestStart  $02
+:   TestStart  $10
     TestAddress r1, $00
     TestAddress a4, $00
     TestEnd
 
-:   TestStart  $03
+:   TestStart  $11
     TestAddress r1, $00
     TestAddress r2, $ae
     TestAddress a3, $ae

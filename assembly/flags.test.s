@@ -108,8 +108,6 @@
     TestOverflowClear
     TestEnd
 
-
-; FIXME Properly implement SBC
 ; 0 - 1 = -1, V clear
 :   SEC
     LDA #$00

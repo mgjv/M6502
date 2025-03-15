@@ -285,7 +285,9 @@ impl<B: Bus> CPU<B> {
                     self.do_jump(instruction, operand);
                 }
             },
-            Instruction::BRK => { self.execute_brk(); },
+            Instruction::BRK => {
+                self.execute_brk();
+            },
             Instruction::BVC => {
                 if !self.status.overflow {
                     self.do_jump(instruction, operand);
@@ -296,10 +298,18 @@ impl<B: Bus> CPU<B> {
                     self.do_jump(instruction, operand);
                 }
             },
-            Instruction::CLC => { self.status.carry = false; },
-            Instruction::CLD => { self.status.decimal = false; },
-            Instruction::CLI => { self.status.irq_disable = false; },
-            Instruction::CLV => { self.status.overflow = false; },
+            Instruction::CLC => {
+                self.status.carry = false;
+            },
+            Instruction::CLD => {
+                self.status.decimal = false;
+            },
+            Instruction::CLI => {
+                self.status.irq_disable = false;
+            },
+            Instruction::CLV => {
+                self.status.overflow = false;
+            },
             Instruction::CMP => {
                 match operand {
                     Operand::Immediate(value) => {
@@ -378,9 +388,17 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::INX => { self.set_x_index(self.x_index.wrapping_add(1)) },
-            Instruction::INY => { self.set_y_index(self.y_index.wrapping_add(1)) },
-            Instruction::JMP => { self.do_jump(instruction, operand); },
+
+
+            Instruction::INX => {
+                self.set_x_index(self.x_index.wrapping_add(1))
+            },
+            Instruction::INY => {
+                self.set_y_index(self.y_index.wrapping_add(1))
+            },
+            Instruction::JMP => {
+                self.do_jump(instruction, operand);
+            },
             Instruction::JSR => {
                 match operand {
                     Operand::Address(address) => {
@@ -444,7 +462,7 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::NOP => { /* doesn't do anything */ },
+            Instruction::NOP => { }, // doesn't do anything
             Instruction::ORA => {
                 match operand {
                     Operand::Immediate(value) => {
@@ -457,11 +475,14 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::PHA => { self.push_stack(self.accumulator); },
+            Instruction::PHA => {
+                self.push_stack(self.accumulator);
+            },
             Instruction::PHP => {
+                // PHP pushes the status register on the stack with bits 4 and 5 set
                 let mut status = self.status;
                 status.brk = true;
-                // debug!("PHP: pushing status %{:08b}", status.as_byte());
+                status.ignored = true;
                 self.push_stack(status.as_byte());
             },
             Instruction::PLA => {
@@ -469,11 +490,15 @@ impl<B: Bus> CPU<B> {
                 self.set_accumulator(value);
             },
             Instruction::PLP => {
+                // PLP sets bits 7, 6, 4, 3, 2, and 1 of the status register
+                // to the value on the stack
                 let value = self.pull_stack();
-                self.status = Status::from_byte(value);
-                // BRK flag should be cleared on pull
-                self.status.brk = false;
-                // debug!("PLP: setting status %{:08b}", self.status.as_byte());
+                let mut new_status = Status::from_byte(value);
+                // Bits 4 (brk) and 5 (ignored) are not affected
+                new_status.ignored = self.status.ignored;
+                new_status.brk = self.status.brk;
+                self.status = new_status;
+                debug!("PLP: setting status %{:08b}", self.status.as_byte());
             },
             Instruction::ROL => {
                 match operand {
@@ -507,7 +532,9 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::RTI => { self.return_from_interrupt(); },
+            Instruction::RTI => {
+                self.return_from_interrupt();
+            },
             Instruction::RTS => {
                 let hi = self.pull_stack();
                 let lo = self.pull_stack();
@@ -526,9 +553,15 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::SEC => { self.status.carry = true; },
-            Instruction::SED => { self.status.decimal = true; },
-            Instruction::SEI => { self.status.irq_disable = true; },
+            Instruction::SEC => {
+                self.status.carry = true;
+            },
+            Instruction::SED => {
+                self.status.decimal = true;
+            },
+            Instruction::SEI => {
+                self.status.irq_disable = true;
+            },
             Instruction::STA => {
                 match operand {
                     Operand::Address(address) => {
@@ -553,12 +586,24 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::TAX => { self.x_index = self.accumulator; },
-            Instruction::TAY => { self.y_index = self.accumulator; },
-            Instruction::TSX => { self.x_index = self.stack_pointer; },
-            Instruction::TXA => { self.accumulator = self.x_index; },
-            Instruction::TXS => { self.stack_pointer = self.x_index; },
-            Instruction::TYA => { self.accumulator = self.y_index; },
+            Instruction::TAX => {
+                self.x_index = self.accumulator;
+            },
+            Instruction::TAY => {
+                self.y_index = self.accumulator;
+            },
+            Instruction::TSX => {
+                self.x_index = self.stack_pointer;
+            },
+            Instruction::TXA => {
+                self.accumulator = self.x_index;
+            },
+            Instruction::TXS => {
+                self.stack_pointer = self.x_index;
+            },
+            Instruction::TYA => {
+                self.accumulator = self.y_index;
+            },
             #[cfg(test)]
             Instruction::VRFY => {
                 match operand {
@@ -620,6 +665,7 @@ impl<B: Bus> CPU<B> {
 
     // Push a new value on the stack, decrementing the stack pointer
     fn push_stack(&mut self, value: u8) {
+        debug!("\tStack Push: {:02x} -> {:02x}", self.stack_pointer, value);
         let address = bytes_to_address(self.stack_pointer, 0x01);
         self.bus.write_byte(address, value);
         self.stack_pointer = self.stack_pointer.wrapping_sub(1);
@@ -627,9 +673,13 @@ impl<B: Bus> CPU<B> {
 
     // Pull the 'top' value off the stack, incrementing the stack pointer
     fn pull_stack(&mut self) -> u8 {
+        debug!("\tStack Pull: {:02x} <- {:02x}",
+            self.stack_pointer.wrapping_add(1),
+            self.bus.read_byte(bytes_to_address(self.stack_pointer.wrapping_add(1), 0x01)));
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let address = bytes_to_address(self.stack_pointer, 0x01);
         self.bus.read_byte(address)
+
     }
 
     #[cfg(test)]

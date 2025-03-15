@@ -8,9 +8,6 @@
     TSX
     STX sp_saved
 
-; TODO Decide whether we want to test initial stack position. We probably
-;      shouldn't care, as it's up to the ROM initialisation routines
-
 ; basic stack test #1: PHA
 ; NOTE: Ensure the first two tests remain together
     LDA #$ee
@@ -44,7 +41,6 @@
     TestA       $dd
     TestEnd
 
-
 ; Test TXS, TSX
 :   LDX #$7f    ; unlikely we'll be overwriting anything here, assuming stack started at $ff
     TXS
@@ -59,16 +55,15 @@
     TestX $7f
     TestEnd
 
-
 ; Test PLP
 :   LDA #%11111111
     PHA
-    ; clear all flags we can clear
+    ; clear all status flags we can clear
     LDA #01
     ADC #01 ; This should have cleared Carry, Zero, Overflow and Negative
     CLI
     CLD
-    PLP         ; Pull the all-bits-set from stack and set status
+    PLP ; Pull the all-bits-set from stack and set status
 
     VRFY    :+
     JMP     :++
@@ -78,25 +73,59 @@
     TestNegativeSet
     TestZeroSet
     TestOverflowSet
-    TestBreakClear      ; The break flag should have been cleared
     TestInterruptSet
+    ; The value of the BRK flag is indeterminate
     TestEnd
 
-
-; Test PHP
+; Test PHP 1
 :   LDA #%11111111
     PHA
     PLP             ; All flags, except BRK should now be set (see previous test)
+    StStatus a1, %11001111 ; Store A but mask out bits 4 and 5
     PHP             ; So, push them again
     PLA             ; and pull them into A
+    AND #%11001111  ; mask out bits 4 and 5
 
     VRFY    :+
     JMP     :++
 
-:   TestStart   $10
-    ; TODO implement some way to test
-    ; The problem is that we cannot kn ow what the status of the ignored bit is
-    ; and we don't (yet) have an operation to mask bits, or extract bits
+:   TestStart   $20
+    TestAddress a1, %11001111 ; all but ignored and brk should be set
+    TestA %11001111
+    TestEnd
+
+; Test PHP 2
+:   LDA #$00
+    PHA
+    PLP             ; All flags should now be clear
+    StStatus a1, %11001111 ; Store A but mask out bits 4 and 5
+    PHP             ; Push them again
+    PLA             ; and pull them into A
+    AND #%11001111  ; mask out bits 4 and 5
+
+    VRFY    :+
+    JMP     :++
+
+:   TestStart   $21
+    TestAddress a1, %00 ; all bits should be clear
+    TestA %00
+    TestEnd
+
+; Test PHP 3
+:   LDA #$91
+    PHA
+    PLP
+    StStatus a1, %11001111 ; Store A but mask out bits 4 and 5
+    PHP             ; Push them again
+    PLA             ; and pull them into A
+    AND #%11001111  ; mask out bits 4 and 5
+
+    VRFY    :+
+    JMP     :++
+
+:   TestStart   $22
+    TestAddress a1, $81
+    TestA $81
     TestEnd
 
 
@@ -108,3 +137,14 @@
 
 .data
     sp_saved:   .byte $aa
+
+    ; Some result variables to prevent needing too many test blocks
+    r1: .byte $de
+    r2: .byte $ad
+    r3: .byte $be
+    r4: .byte $af
+
+    a1: .byte $de
+    a2: .byte $ad
+    a3: .byte $be
+    a4: .byte $ef
