@@ -8,7 +8,7 @@
     TSX
     STX sp_saved
 
-; TODO Decide whether we want to test initial stack position. We probably 
+; TODO Decide whether we want to test initial stack position. We probably
 ;      shouldn't care, as it's up to the ROM initialisation routines
 
 ; basic stack test #1: PHA

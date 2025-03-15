@@ -39,12 +39,12 @@ impl NormalClock {
 }
 
 impl Clock for NormalClock {
-    /* 
+    /*
      * wait for the given number of ticks to have expired
      * This requires that the amount of time elapsed outside of this
      * function isn't consistently larger than the clock_speed's interval
-     * 
-     * FIXME: This will go weird if tick() isn't called on average at least 
+     *
+     * FIXME: This will go weird if tick() isn't called on average at least
      * once per interval. De ide what to do.
      */
     fn tick(&mut self, tick_count: TickCount) {

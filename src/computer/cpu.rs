@@ -67,7 +67,7 @@ impl<B: Bus> CPU<B> {
                 None => break,
             }
         }
- 
+
 
         return new_cpu
     }
@@ -125,8 +125,8 @@ impl<B: Bus> CPU<B> {
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
 
-                debug!("{:04x}:{:02x} -> {} {} -> {} {}", 
-                    self.program_counter, opcode, 
+                debug!("{:04x}:{:02x} -> {} {} -> {} {}",
+                    self.program_counter, opcode,
                     instruction, address_mode.debug_format(operand_bytes),
                     instruction, operand.debug_format());
 
@@ -161,7 +161,7 @@ impl<B: Bus> CPU<B> {
 
     pub fn memory_size(&self) -> usize {
         self.bus.memory_size()
-    }  
+    }
 
     fn get_operand(&self, addressmode: AddressMode, bytes: [u8; 2]) -> Operand {
         match addressmode {
@@ -192,7 +192,7 @@ impl<B: Bus> CPU<B> {
             AddressMode::Relative    => {
                 // offset is a 2's complement signed byte
                 let offset = bytes[0] as i8;
-                // offset is relative to immediate next instruction address         
+                // offset is relative to immediate next instruction address
                 let address = self.program_counter.wrapping_add(2).wrapping_add(offset as u16);
                 Operand::Address(address)
             },
@@ -243,12 +243,12 @@ impl<B: Bus> CPU<B> {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-            Instruction::BCC => { 
+            Instruction::BCC => {
                 if !self.status.carry {
                     self.do_jump(instruction, operand);
                 }
             },
-            Instruction::BCS => { 
+            Instruction::BCS => {
                 if self.status.carry {
                     self.do_jump(instruction, operand);
                 }
@@ -342,7 +342,7 @@ impl<B: Bus> CPU<B> {
             },
             Instruction::DEY => {
                 let new_y = self.y_index.wrapping_sub(1);
-                self.set_y_index(new_y); 
+                self.set_y_index(new_y);
             },
             Instruction::EOR => {
                 match operand {
@@ -445,17 +445,17 @@ impl<B: Bus> CPU<B> {
                 }
             },
             Instruction::PHA => { self.push_stack(self.accumulator); },
-            Instruction::PHP => { 
+            Instruction::PHP => {
                 let mut status = self.status;
                 status.brk = true;
                 // debug!("PHP: pushing status %{:08b}", status.as_byte());
                 self.push_stack(status.as_byte());
             },
-            Instruction::PLA => { 
+            Instruction::PLA => {
                 let value = self.pull_stack();
-                self.set_accumulator(value); 
+                self.set_accumulator(value);
             },
-            Instruction::PLP => { 
+            Instruction::PLP => {
                 let value = self.pull_stack();
                 self.status = Status::from_byte(value);
                 // BRK flag should be cleared on pull
@@ -551,8 +551,8 @@ impl<B: Bus> CPU<B> {
                 }
             },
             #[cfg(test)]
-            Instruction::FAIL | Instruction::HALT => { 
-                assert!(false, "{} should already have been handled before this", instruction); 
+            Instruction::FAIL | Instruction::HALT => {
+                assert!(false, "{} should already have been handled before this", instruction);
             },
         }
     }
@@ -675,10 +675,10 @@ impl<B: Bus> CPU<B> {
 
         let new_a = a.wrapping_add(value).wrapping_add(c);
 
-        self.status.carry = new_a < a 
-                    || (new_a == 0 && c == 1) 
+        self.status.carry = new_a < a
+                    || (new_a == 0 && c == 1)
                     || (value == 0xff && c == 1);
-        self.status.overflow = (a > 0x7f && value > 0x7f && new_a < 0x80) 
+        self.status.overflow = (a > 0x7f && value > 0x7f && new_a < 0x80)
                     || (a < 0x80 && value < 0x80 && new_a > 0x7f);
 
         self.set_accumulator(new_a);

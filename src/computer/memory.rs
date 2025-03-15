@@ -3,7 +3,7 @@ use std::fmt;
 
 use log::trace;
 
-// This function works in this order, because it's the order in which 
+// This function works in this order, because it's the order in which
 // bytes are read from memory (i.e. little endian)
 pub fn bytes_to_address(lo: u8, hi: u8) -> u16 {
     //u16::from(lo) + (u16::from(hi) << 8)
@@ -18,10 +18,10 @@ pub fn address_to_bytes(address: u16) -> [u8; 2] {
 
 /*
  * Bus abstraction
- * 
+ *
  * We should really get the address first and store it, then use
  * that address for the subsequent reads, but the situation where
- * a set is followed by multiple reads is much rarer than the set 
+ * a set is followed by multiple reads is much rarer than the set
  * and the read coming in pairs, so we optimise the API for that
 */
 pub trait Bus: Debug {
@@ -50,7 +50,7 @@ pub trait Bus: Debug {
 }
 
 // We will limit the address range from 0x0000 to 0xFFFF
-// TODO? The fact that this needs to be a usize, but all our addressing 
+// TODO? The fact that this needs to be a usize, but all our addressing
 //      is in u16 is a bit of a pain.
 const MAX_MEMORY_SIZE: usize = u16::MAX as usize + 1;
 const DEFAULT_MEMORY_SIZE: usize = MAX_MEMORY_SIZE;
@@ -72,7 +72,7 @@ impl Bus for Memory {
         self.data.len()
     }
 
-    // TODO do we need to make this "safe" for end of memory space? 
+    // TODO do we need to make this "safe" for end of memory space?
     fn read_byte(&self, address: u16) -> u8 {
 		trace!(
 			"[Read]\t\t{:02x} from {:04x}",
@@ -81,7 +81,7 @@ impl Bus for Memory {
 		self.data[address as usize]
 	}
 
-    // TODO do we need to make this "safe" for end of memory space? 
+    // TODO do we need to make this "safe" for end of memory space?
     fn read_two_bytes(&self, address: u16) -> [u8; 2] {
         // TODO this could probably be done with a slice?
         [
@@ -110,7 +110,7 @@ impl Bus for Memory {
         let offset = usize::from(address);
         self.data[offset..][..bytes.len()].copy_from_slice(bytes);
     }
-    
+
     fn read_address(&self, address: u16) -> u16 {
         let b = self.read_two_bytes(address);
         bytes_to_address(b[0], b[1])
@@ -170,7 +170,7 @@ mod tests {
         }
 
         let mut memory = Memory::new();
-        
+
         let bytes = [0x10, 0x20, 0x30, 0x40, 0x50];
         memory.write_bytes(0x0000, &bytes);
         assert_eq!(memory.read_byte(0x0000), 0x10);
@@ -203,7 +203,7 @@ mod tests {
         assert_eq!(address_to_bytes(0xffffu16), [0xff, 0xff]);
         assert_eq!(address_to_bytes(0xffffu16.wrapping_add(1)), [0, 0]);
         assert_eq!(address_to_bytes(0x0000u16.wrapping_sub(1)), [0xff, 0xff]);
-   
+
         assert_eq!([0xde, 0xad], address_to_bytes(bytes_to_address(0xde, 0xad)));
     }
 }

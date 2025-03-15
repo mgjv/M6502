@@ -20,7 +20,7 @@ reset:
     BRK
 
 nmi:
-    NOP   
+    NOP
 
 irq:
     ; Save the state of the registers
@@ -38,10 +38,10 @@ irq:
     PLA
 
     ; return
-    RTI 
+    RTI
 
     .segment "VECTORS"
 
-    .word nmi 
+    .word nmi
     .word reset
     .word irq

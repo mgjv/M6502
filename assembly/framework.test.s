@@ -36,7 +36,7 @@
     ClearMemory r1, 8
 
     VRFY    :+
-    
+
     ClearMemory r2, 6, $ae
 
     VRFY    :++
@@ -49,7 +49,7 @@
 
 :   TestStart  $03
     TestAddress r1, $00
-    TestAddress r2, $ae    
+    TestAddress r2, $ae
     TestAddress a3, $ae
     TestAddress a4, $00
     TestEnd

@@ -60,7 +60,7 @@
     TestEnd
 
 ; 1 + -1 = 0; 1 + 255 = 0
-:   CLC 
+:   CLC
     LDA #$01
     ADC #$ff
 
@@ -123,7 +123,7 @@
     TestEnd
 
 ; -128 - 1 = -129, V set
-:   SEC      
+:   SEC
     LDA #$80
     SBC #$01
 
@@ -135,7 +135,7 @@
     TestEnd
 
 ; 127 - -1 = 128, V set
-:   SEC      
+:   SEC
     LDA #$7F
     SBC #$FF
 

@@ -64,7 +64,7 @@ fn show_debug(s: &str) {
     }
 }
 
-#[cfg(test)] 
+#[cfg(test)]
 mod tests {
     use super::*;
 

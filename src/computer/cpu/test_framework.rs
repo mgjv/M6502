@@ -2,7 +2,7 @@ use super::*;
 use log::debug;
 use std::fmt::Write;
 
-pub const TEST_ROM: &'static[u8] = 
+pub const TEST_ROM: &'static[u8] =
     &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
        0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x00, 0x00 ];
 
@@ -70,11 +70,11 @@ impl TestOp {
             TestOp::TestBreakSet => format!("Test BreakSet"),
             TestOp::TestBreakClear => format!("Test BreakClear"),
 
-            TestOp::TestAddressContents => 
+            TestOp::TestAddressContents =>
                 format!("Test AddressContents({:02x}{:02x}) = {:02x}", bytes[1], bytes[0], bytes[3]),
-            TestOp::TestStackContents => 
+            TestOp::TestStackContents =>
                 format!("Test StackContents({:02x}) = {:02x}", bytes[1], bytes[0]),
-            TestOp::TestStackPointer => 
+            TestOp::TestStackPointer =>
                 format!("Test StackPointer = {:02x}", bytes[0]),
         }
     }
@@ -123,7 +123,7 @@ impl <B: Bus> CPU<B> {
         let first_op = TestOp::try_from(first_op_code).expect(
             &format!("Invalid test operation {:02x} at address {:04x}", first_op_code, start_address)
         );
-        assert!(first_op == TestOp::TestStart, 
+        assert!(first_op == TestOp::TestStart,
             "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
         let test_id = self.bus.read_byte(start_address + 1);
 
@@ -136,8 +136,8 @@ impl <B: Bus> CPU<B> {
             let test_op = TestOp::try_from(test_op_code).expect(
                 &format!("Invalid test operation {:02x} at address {:04x}", test_op_code, address)
             );
-            
-            debug!("{:04x}:{:02x} (T {:02x}:{}) -> {}", 
+
+            debug!("{:04x}:{:02x} (T {:02x}:{}) -> {}",
                 start_address, test_op_code, test_id, op_num,
                 test_op.debug_format(&self.bus.read_four_bytes(address.wrapping_add(1))));
 
@@ -148,19 +148,19 @@ impl <B: Bus> CPU<B> {
                     address += 1;
                     // assert_eq!(self.accumulator, self.bus.read_byte(address));
                     assert!(self.accumulator == self.bus.read_byte(address),
-                        "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
+                        "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n",
                         test_id, op_num, self.accumulator, self.bus.read_byte(address));
                 },
-                TestOp::TestX  => { 
+                TestOp::TestX  => {
                     address += 1;
-                    assert!(self.x_index == self.bus.read_byte(address), 
-                        "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
-                        test_id, op_num,  self.x_index, self.bus.read_byte(address));   
+                    assert!(self.x_index == self.bus.read_byte(address),
+                        "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n",
+                        test_id, op_num,  self.x_index, self.bus.read_byte(address));
                 },
-                TestOp::TestY  => { 
+                TestOp::TestY  => {
                     address += 1;
-                    assert!(self.y_index == self.bus.read_byte(address), 
-                        "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
+                    assert!(self.y_index == self.bus.read_byte(address),
+                        "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
                         test_id, op_num,  self.y_index, self.bus.read_byte(address));
                 },
                 TestOp::TestCarrySet => assert!(self.status.carry, "Carry flag should be set"),

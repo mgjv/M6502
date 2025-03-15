@@ -10,13 +10,13 @@ impl<B: Bus> CPU<B> {
         write!(b, "\n")?;
 
         // compute registers
-        write!{b, " {:02X}  {:02X}  {:02X}", 
-            self.accumulator, 
-            self.x_index, 
+        write!{b, " {:02X}  {:02X}  {:02X}",
+            self.accumulator,
+            self.x_index,
             self.y_index}?;
 
         // status register
-        write!(b, "\t{:1b} {:1b} {color_bright_black}{:1b} {:1b}{color_reset} {:1b} {:1b} {:1b} {:1b}", 
+        write!(b, "\t{:1b} {:1b} {color_bright_black}{:1b} {:1b}{color_reset} {:1b} {:1b} {:1b} {:1b}",
             u8::from(self.status.negative),
             u8::from(self.status.overflow),
             u8::from(self.status.ignored),
@@ -27,7 +27,7 @@ impl<B: Bus> CPU<B> {
             u8::from(self.status.carry))?;
 
         // vectors
-        write!(b, "\t\t{:04x} {:04x} {:04x}", 
+        write!(b, "\t\t{:04x} {:04x} {:04x}",
             self.bus.read_address(NMI_ADDRESS),
             self.bus.read_address(RESET_ADDRESS),
             self.bus.read_address(IRQ_ADDRESS))?;

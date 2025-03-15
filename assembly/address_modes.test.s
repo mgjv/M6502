@@ -62,7 +62,7 @@
     STA $60,Y       ; Zero page,Y addressing mode
     STA $0310, X    ; Absolute,X addressing mode
     STA $0310, Y    ; Absolute,X addressing mode
- 
+
     VRFY  :+
     JMP     :++
 

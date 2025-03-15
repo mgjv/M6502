@@ -6,7 +6,7 @@
 
 .include "test.inc"
 
-NZCmask .set %10000011 
+NZCmask .set %10000011
 
 ; TODO Address mode tests for at least one of these
 

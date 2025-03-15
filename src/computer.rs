@@ -23,7 +23,7 @@ impl<C: Clock> Computer<C> {
 
         let cpu = CPU::new(Memory::new(), rom_data);
 
-        let mut new_computer = Self { 
+        let mut new_computer = Self {
             cpu: cpu,
             clock: clock,
         };
@@ -37,7 +37,7 @@ impl<C: Clock> Computer<C> {
 
 impl<C: Clock> Computer<C> {
     pub fn run(&mut self) {
-        let mut number_of_ticks: TickCount = 1; 
+        let mut number_of_ticks: TickCount = 1;
         loop {
             self.clock.tick(number_of_ticks);
             match self.cpu.fetch_and_execute() {
@@ -101,8 +101,8 @@ mod tests {
     #[test_case("framework"; "test framework")]
     #[test_case("flags"; "status flags")]
     #[test_case("branches"; "conditional branches")]
-    #[test_case("address_modes"; "address modes")] 
-    #[test_case("transfer"; "transfer instructions")] 
+    #[test_case("address_modes"; "address modes")]
+    #[test_case("transfer"; "transfer instructions")]
     #[test_case("stack"; "stack operation")]
     #[test_case("increment"; "increment and decrement")]
     #[test_case("logical"; "logical instructions")]

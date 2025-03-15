@@ -3,5 +3,6 @@
         "./Cargo.toml"
     ],
     "C_Cpp.autoAddFileAssociations": false,
-    "explorer.excludeGitIgnore": true
+    "explorer.excludeGitIgnore": true,
+    "files.trimTrailingWhitespace": true
 }

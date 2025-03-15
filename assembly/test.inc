@@ -1,15 +1,15 @@
-; Macros to assist in testing. There are pseudo-ionstructions that 
+; Macros to assist in testing. There are pseudo-ionstructions that
 ; need to be handled by the CPU in test mode only (see cpu.rs),
 ; and there are specific test operators that are only active in VRFY mode
 
-; This is a pseudo instruction that will start a verification test l;ocated at the 
+; This is a pseudo instruction that will start a verification test l;ocated at the
 ; given address/label
 .macro  VRFY  address
     .byte $fa
     .addr address
 .endmacro
 
-; Fail the test. Use this to identify places in the code that should not be 
+; Fail the test. Use this to identify places in the code that should not be
 ; reached
 .macro FAIL
     .byte $fb
@@ -144,16 +144,16 @@
     LDA #$00
     .endif
     LDX #$00       ; start at 0
-loop:   
+loop:
     STA address,X
     INX
     CPX #size
     BEQ end         ; bail out before size
     JMP loop
 
-end:   
+end:
     PLA
     TAX ; restore original X
     PLA ; restore original A
-    
+
 .endmacro

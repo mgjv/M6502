@@ -1,4 +1,4 @@
-; Tests for ADC and SBC 
+; Tests for ADC and SBC
 
 ; Also see some tests for flags in 'flags' test
 
@@ -22,7 +22,7 @@
     TestZeroClear
     TestNegativeClear
     TestEnd
- 
+
 ; ADC Test that we roll over, and that rthe correct flags are set
 :   CLC
     LDA #$ff

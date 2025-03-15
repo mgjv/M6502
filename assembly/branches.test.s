@@ -36,7 +36,7 @@
     BNE :+
     FAIL        ; this should be skipped
     FAIL
-:   LDX #$03    ; this should be executed. 
+:   LDX #$03    ; this should be executed.
     LDA #$00    ; set the zero flag
     BNE :+
     JMP :++
@@ -129,7 +129,7 @@
     BPL :+
     FAIL        ; this should be skipped
     FAIL
-:   LDX #$03    ; this should be executed. 
+:   LDX #$03    ; this should be executed.
     LDA #$ff    ; set the negative flag
     BPL :+
     JMP :++
@@ -153,7 +153,7 @@
     BVS :+
     FAIL        ; this should be skipped
     FAIL
-:   LDX #$03    ; this should be executed. 
+:   LDX #$03    ; this should be executed.
     CLV         ; clear the overflow flag
     BVS :+
     JMP :++
@@ -176,7 +176,7 @@
     BVC :+
     FAIL        ; this should be skipped
     FAIL
-:   LDX #$03    ; this should be executed. 
+:   LDX #$03    ; this should be executed.
     LDA #$7f    ; set the overflow flag
     ADC #$01
     BVC :+
