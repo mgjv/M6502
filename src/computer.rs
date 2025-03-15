@@ -110,7 +110,11 @@ mod tests {
     #[test_case("add_with_carry"; "add with carry")]
     #[test_case("comparison"; "comparison instructions")]
     fn assembly(test_name: &str) {
-        let _ = env_logger::builder().is_test(true).try_init();
+        let _ = env_logger::builder()
+            .is_test(true)
+            .format_timestamp(None)
+            .format_target(false)
+            .try_init();
         let mut computer = create_test_computer();
         let file_name = format!("assembly/{}.test.bin", test_name);
         let program = read_program(file_name.as_str());

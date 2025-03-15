@@ -45,9 +45,6 @@
 .macro  TestY   e
     .byte $03, e
 .endmacro
-.macro TestSP   e
-    .byte $08, e
-.endmacro
 
 ; Test the status flags
 .macro  TestCarrySet

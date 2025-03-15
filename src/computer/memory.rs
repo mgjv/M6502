@@ -29,6 +29,8 @@ pub trait Bus: Debug {
 
     fn read_byte(&self, address: u16) -> u8;
     fn read_two_bytes(&self, address: u16) -> [u8; 2];
+    #[cfg(test)] // TODO This is a bit ugly
+    fn read_four_bytes(&self, address: u16) -> [u8; 4];
 
     fn write_byte(&mut self, address: u16, byte: u8);
     fn write_bytes(&mut self, start_address: u16, bytes: &[u8]) {
@@ -88,6 +90,17 @@ impl Bus for Memory {
         ]
     }
 
+    #[cfg(test)]
+    fn read_four_bytes(&self, address: u16) -> [u8; 4] {
+        // TODO this could probably be done with a slice?
+        [
+            self.read_byte(address),
+            self.read_byte(address.wrapping_add(1)),
+            self.read_byte(address.wrapping_add(2)),
+            self.read_byte(address.wrapping_add(3)),
+        ]
+    }
+
     fn write_byte(&mut self, address: u16, value: u8) {
 		trace!("[Write]\t\t{:02x} at {:04x}", value, address);
 		self.data[address as usize] = value;
@@ -96,6 +109,11 @@ impl Bus for Memory {
     fn write_bytes(&mut self, address: u16, bytes: &[u8]) {
         let offset = usize::from(address);
         self.data[offset..][..bytes.len()].copy_from_slice(bytes);
+    }
+    
+    fn read_address(&self, address: u16) -> u16 {
+        let b = self.read_two_bytes(address);
+        bytes_to_address(b[0], b[1])
     }
 }
 

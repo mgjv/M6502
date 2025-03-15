@@ -129,7 +129,7 @@ loc3:
     VRFY    :+
     JMP     :++
 
-:   TestStart   $04
+:   TestStart   $05
     TestAddress $4020, $ee
     TestAddress $4063, $cc
     TestEnd

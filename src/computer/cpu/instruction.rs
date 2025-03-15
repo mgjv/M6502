@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 // Possible address modes for the above instructions
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AddressMode {

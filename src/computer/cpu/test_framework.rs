@@ -16,7 +16,7 @@ pub fn test_rom_end_of_execution () -> u16 {
     test_rom_start() + offset as u16
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, strum_macros::Display)]
 enum TestOp {
     TestStart,
     TestEnd,
@@ -24,7 +24,6 @@ enum TestOp {
     TestA,
     TestX,
     TestY,
-    TestSP,
 
     TestCarrySet,
     TestCarryClear,
@@ -46,6 +45,42 @@ enum TestOp {
     TestStackPointer,
 }
 
+impl TestOp {
+    fn debug_format(&self, bytes: &[u8; 4]) -> String {
+        match self {
+            TestOp::TestStart => format!("Test Start {:02x}", bytes[0]),
+            TestOp::TestEnd => format!("Test End"),
+
+            TestOp::TestA => format!("Test A == {:02x}", bytes[0]),
+            TestOp::TestX => format!("Test X == {:02x}", bytes[0]),
+            TestOp::TestY => format!("Test Y == {:02x}", bytes[0]),
+
+            TestOp::TestCarrySet => format!("Test CarrySet"),
+            TestOp::TestCarryClear => format!("Test CarryClear"),
+            TestOp::TestZeroSet => format!("Test ZeroSet"),
+            TestOp::TestZeroClear => format!("Test ZeroClear"),
+            TestOp::TestNegativeSet => format!("Test NegativeSet"),
+            TestOp::TestNegativeClear => format!("Test NegativeClear"),
+            TestOp::TestOverflowSet => format!("Test OverflowSet"),
+            TestOp::TestOverflowClear => format!("Test OverflowClear"),
+            TestOp::TestDecimalSet => format!("Test DecimalSet"),
+            TestOp::TestDecimalClear => format!("Test DecimalClear"),
+            TestOp::TestInterruptSet => format!("Test InterruptSet"),
+            TestOp::TestInterruptClear => format!("Test InterruptClear"),
+            TestOp::TestBreakSet => format!("Test BreakSet"),
+            TestOp::TestBreakClear => format!("Test BreakClear"),
+
+            TestOp::TestAddressContents => 
+                format!("Test AddressContents({:02x}{:02x}) = {:02x}", bytes[1], bytes[0], bytes[3]),
+            TestOp::TestStackContents => 
+                format!("Test StackContents({:02x}) = {:02x}", bytes[1], bytes[0]),
+            TestOp::TestStackPointer => 
+                format!("Test StackPointer = {:02x}", bytes[0]),
+        }
+    }
+
+}
+
 impl TryFrom<u8> for TestOp {
     type Error = ();
 
@@ -56,7 +91,6 @@ impl TryFrom<u8> for TestOp {
             0x01 => Ok(TestOp::TestA),
             0x02 => Ok(TestOp::TestX),
             0x03 => Ok(TestOp::TestY),
-            0x08 => Ok(TestOp::TestSP),
             0x30 => Ok(TestOp::TestCarrySet),
             0x31 => Ok(TestOp::TestCarryClear),
             0x32 => Ok(TestOp::TestZeroSet),
@@ -93,18 +127,22 @@ impl <B: Bus> CPU<B> {
             "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
         let test_id = self.bus.read_byte(start_address + 1);
 
-        debug!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
+        //debug!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
 
-        let mut address = start_address + 2;
+        let mut address = start_address;
         let mut op_num = 1;
         loop {
             let test_op_code = self.bus.read_byte(address);
             let test_op = TestOp::try_from(test_op_code).expect(
                 &format!("Invalid test operation {:02x} at address {:04x}", test_op_code, address)
             );
-            debug!("Test operation: {:?}", test_op);
+            
+            debug!("{:04x}:{:02x} (T {:02x}:{}) -> {}", 
+                start_address, test_op_code, test_id, op_num,
+                test_op.debug_format(&self.bus.read_four_bytes(address.wrapping_add(1))));
+
             match test_op {
-                TestOp::TestStart => assert!(false, "Nested test start at address {:04x}", address),
+                TestOp::TestStart => { address += 1; }, // only here for the debug line
                 TestOp::TestEnd => break,
                 TestOp::TestA => {
                     address += 1;
@@ -124,12 +162,6 @@ impl <B: Bus> CPU<B> {
                     assert!(self.y_index == self.bus.read_byte(address), 
                         "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
                         test_id, op_num,  self.y_index, self.bus.read_byte(address));
-                },
-                TestOp::TestSP  => { 
-                    address += 1;
-                    assert!(self.stack_pointer == self.bus.read_byte(address),     
-                        "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                        test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
                 },
                 TestOp::TestCarrySet => assert!(self.status.carry, "Carry flag should be set"),
                 TestOp::TestCarryClear => assert!(!self.status.carry, "Carry flag should not be set"),
