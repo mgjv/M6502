@@ -1,5 +1,10 @@
+mod inspect;
+mod instruction;
+use instruction::*;
+mod status;
+use status::*;
+
 use log::{debug, error};
-use smart_default::SmartDefault;
 use inline_colorization::*;
 
 use std::fmt;
@@ -9,8 +14,6 @@ use crate::computer::memory::address_to_bytes;
 use super::clock::TickCount;
 use super::memory::{Bus, bytes_to_address};
 
-mod instruction;
-use instruction::*;
 
 // Standard memory locations to fetch addresses from
 const NMI_ADDRESS: u16 = 0xfffa;
@@ -35,48 +38,6 @@ pub struct CPU<B: Bus> {
     stack_pointer: u8,
     program_counter: u16,
     status: Status,
-}
-
-#[derive(SmartDefault, Debug, PartialEq, Copy, Clone)]
-struct Status {
-    negative: bool,
-    overflow: bool,
-    #[default = true] // always appears to be set
-    ignored: bool,
-    #[default = true] // always appears to be set after reset
-    brk: bool, // TODO Hardware interrupts need to set this to false
-    decimal: bool,
-    irq_disable: bool,
-    zero: bool,
-    carry: bool
-}
-
-impl Status {
-    fn as_byte(&self) -> u8 {
-        let mut byte: u8 = 0;
-        byte |= u8::from(self.negative) << 7;
-        byte |= u8::from(self.overflow) << 6;
-        byte |= u8::from(self.ignored) << 5;
-        byte |= u8::from(self.brk) << 4;
-        byte |= u8::from(self.decimal) << 3;
-        byte |= u8::from(self.irq_disable) << 2;
-        byte |= u8::from(self.zero) << 1;
-        byte |= u8::from(self.carry);
-        byte
-    }
-
-    fn from_byte(byte: u8) -> Self {
-        Self {
-            negative: (byte & 0b1000_0000) != 0,
-            overflow: (byte & 0b0100_0000) != 0,
-            ignored: (byte & 0b0010_0000) != 0,
-            brk: (byte & 0b0001_0000) != 0,
-            decimal: (byte & 0b0000_1000) != 0,
-            irq_disable: (byte & 0b0000_0100) != 0,
-            zero: (byte & 0b0000_0010) != 0,
-            carry: (byte & 0b0000_0001) != 0,
-        }
-    }
 }
 
 impl<B: Bus> CPU<B> {
@@ -110,85 +71,6 @@ impl<B: Bus> CPU<B> {
 
         return new_cpu
     }
-}
-
-// Formatting/Display functions
-impl<B: Bus> CPU<B> {
-
-    pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        write!(b, " A   X   Y")?;
-        write!(b, "\tN O {color_bright_black}- B{color_reset} D I Z C")?;
-        write!(b, "\t\tNMI  RST  IRQ")?;
-        write!(b, "\n")?;
-
-        // compute registers
-        write!{b, " {:02X}  {:02X}  {:02X}", 
-            self.accumulator, 
-            self.x_index, 
-            self.y_index}?;
-
-        // status register
-        write!(b, "\t{:1b} {:1b} {color_bright_black}{:1b} {:1b}{color_reset} {:1b} {:1b} {:1b} {:1b}", 
-            u8::from(self.status.negative),
-            u8::from(self.status.overflow),
-            u8::from(self.status.ignored),
-            u8::from(self.status.brk),
-            u8::from(self.status.decimal),
-            u8::from(self.status.irq_disable),
-            u8::from(self.status.zero),
-            u8::from(self.status.carry))?;
-
-        // vectors
-        write!(b, "\t\t{:04x} {:04x} {:04x}", 
-            self.bus.read_address(NMI_ADDRESS),
-            self.bus.read_address(RESET_ADDRESS),
-            self.bus.read_address(IRQ_ADDRESS))?;
-
-        write!(b, "\n")?;
-        Ok(())
-    }
-
-    pub fn show_program_memory<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        self.show_memory(b, self.program_counter)
-    }
-
-    pub fn show_reset_memory<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        let reset_address = self.bus.read_address(RESET_ADDRESS);
-        self.show_memory(b, reset_address)
-    }
-
-    pub fn show_stack<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
-        let stack_address = bytes_to_address(self.stack_pointer, 0x01);
-        self.show_memory(b, stack_address)
-    }
-
-    pub fn show_memory<W: fmt::Write>(&self, b: &mut W, focal_address: u16) -> Result<(), fmt::Error> {
-        let start = if focal_address > 16 {
-            ((focal_address - 16)/ 16) * 16
-        } else {
-            (focal_address/ 16) * 16
-        };
-        let end = start + 3 * 16;
-
-        for address in start .. end {
-            if address % 16 == 0 {
-                write!(b, " {color_bright_blue}0x{:04X}{color_reset}: ", address)?;
-            }
-            if address % 16 == 8 { write!(b, " ")?; }
-            if address == focal_address { write!(b, "{color_red}")?; }
-
-            let byte = self.bus.read_byte(address);
-            write!(b, " {:02X}", byte)?;
-
-            if address == focal_address { write!(b, "{color_reset}")?; }
-
-            if address % 16 == 15 { write!(b, "\n")?; }
-        }
-        Ok(())
-    }
-}
-
-impl<B: Bus> CPU<B> {
 
     // Load the given memory at the end of the address range
     fn load_rom(&mut self, rom: &[u8]) {
@@ -811,232 +693,20 @@ impl<B: Bus> CPU<B> {
     }
 }
 
+// FIXME change this. Might need to move to instruction, but probably needs to be
+// split into one for CPU and one for Instruction
 fn illegal_opcode(instruction: Instruction, operand: Operand) {
     error!("Attempt to execute illegal opcode for {:?} with operand {:?}", instruction, operand);
 }
 
 #[cfg(test)]
+mod test_framework;
+
+#[cfg(test)]
 pub mod tests {
     use crate::computer::memory::Memory;
-    use std::fmt::Write;
     use super::*;
-    use log::debug;
-
-    pub const TEST_ROM: &'static[u8] = 
-        &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
-           0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x00, 0x00 ];
-    
-    fn test_rom_start() -> u16 {
-        0xffff - (TEST_ROM.len() - 1) as u16
-    }
-
-    fn test_rom_end_of_execution () -> u16 {
-        // find the first 0x00
-        let offset = TEST_ROM.iter().position(|&b| b == 0x00).unwrap() as u16;
-        test_rom_start() + offset as u16
-    }
-
-    #[derive(Debug, PartialEq)]
-    enum TestOp {
-        TestStart,
-        TestEnd,
-
-        TestA,
-        TestX,
-        TestY,
-        TestSP,
-
-        TestCarrySet,
-        TestCarryClear,
-        TestZeroSet,
-        TestZeroClear,
-        TestNegativeSet,
-        TestNegativeClear,
-        TestOverflowSet,
-        TestOverflowClear,
-        TestDecimalSet,
-        TestDecimalClear,
-        TestInterruptSet,
-        TestInterruptClear,
-        TestBreakSet,
-        TestBreakClear,
-
-        TestAddressContents,
-        TestStackContents,
-        TestStackPointer,
-    }
-
-    impl TryFrom<u8> for TestOp {
-        type Error = ();
-
-        fn try_from(value: u8) -> Result<Self, Self::Error> {
-            match value {
-                0xc2 => Ok(TestOp::TestStart),
-                0x00 => Ok(TestOp::TestEnd),
-                0x01 => Ok(TestOp::TestA),
-                0x02 => Ok(TestOp::TestX),
-                0x03 => Ok(TestOp::TestY),
-                0x08 => Ok(TestOp::TestSP),
-                0x30 => Ok(TestOp::TestCarrySet),
-                0x31 => Ok(TestOp::TestCarryClear),
-                0x32 => Ok(TestOp::TestZeroSet),
-                0x33 => Ok(TestOp::TestZeroClear),
-                0x34 => Ok(TestOp::TestNegativeSet),
-                0x35 => Ok(TestOp::TestNegativeClear),
-                0x36 => Ok(TestOp::TestOverflowSet),
-                0x37 => Ok(TestOp::TestOverflowClear),
-                0x38 => Ok(TestOp::TestDecimalSet),
-                0x39 => Ok(TestOp::TestDecimalClear),
-                0x3a => Ok(TestOp::TestInterruptSet),
-                0x3b => Ok(TestOp::TestInterruptClear),
-                0x3c => Ok(TestOp::TestBreakSet),
-                0x3d => Ok(TestOp::TestBreakClear),
-                0x80 => Ok(TestOp::TestAddressContents),
-                0x88 => Ok(TestOp::TestStackContents),
-                0x89 => Ok(TestOp::TestStackPointer),
-                _ => Err(()),
-            }
-        }
-    }
-
-    // Add some methods to be used in integration tests in computer
-    impl <B: Bus> CPU<B> {
-        // This is called by the pseudo test instruction VRFY
-        // The test parameters start at the given address
-        pub fn verify_test(&self, start_address: u16) {
-
-            let first_op_code = self.bus.read_byte(start_address);
-            let first_op = TestOp::try_from(first_op_code).expect(
-                &format!("Invalid test operation {:02x} at address {:04x}", first_op_code, start_address)
-            );
-            assert!(first_op == TestOp::TestStart, 
-                "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
-            let test_id = self.bus.read_byte(start_address + 1);
-
-            debug!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
-
-            let mut address = start_address + 2;
-            let mut op_num = 1;
-            loop {
-                let test_op_code = self.bus.read_byte(address);
-                let test_op = TestOp::try_from(test_op_code).expect(
-                    &format!("Invalid test operation {:02x} at address {:04x}", test_op_code, address)
-                );
-                debug!("Test operation: {:?}", test_op);
-                match test_op {
-                    TestOp::TestStart => assert!(false, "Nested test start at address {:04x}", address),
-                    TestOp::TestEnd => break,
-                    TestOp::TestA => {
-                        address += 1;
-                        // assert_eq!(self.accumulator, self.bus.read_byte(address));
-                        assert!(self.accumulator == self.bus.read_byte(address),
-                            "({:02x}:{:02x}) Assertion failed on Accumulator: \nAccumulator:\t{:02x}\nExpected:\t{:02x}\n\n", 
-                            test_id, op_num, self.accumulator, self.bus.read_byte(address));
-                    },
-                    TestOp::TestX  => { 
-                        address += 1;
-                        assert!(self.x_index == self.bus.read_byte(address), 
-                            "({:02x}:{:02x}) Assertion failed on X Index: \nX Val:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  self.x_index, self.bus.read_byte(address));   
-                    },
-                    TestOp::TestY  => { 
-                        address += 1;
-                        assert!(self.y_index == self.bus.read_byte(address), 
-                            "({:02x}:{:02x}) Assertion failed on Y Index: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  self.y_index, self.bus.read_byte(address));
-                    },
-                    TestOp::TestSP  => { 
-                        address += 1;
-                        assert!(self.stack_pointer == self.bus.read_byte(address),     
-                            "({:02x}:{:02x}) Assertion failed on Stack Pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n", 
-                            test_id, op_num,  self.stack_pointer, self.bus.read_byte(address));
-                    },
-                    TestOp::TestCarrySet => assert!(self.status.carry, "Carry flag should be set"),
-                    TestOp::TestCarryClear => assert!(!self.status.carry, "Carry flag should not be set"),
-                    TestOp::TestZeroSet => assert!(self.status.zero, "Zero flag should be set"),
-                    TestOp::TestZeroClear => assert!(!self.status.zero, "Zero flag should not be set"),
-                    TestOp::TestNegativeSet => assert!(self.status.negative, "Negative flag should be set"),
-                    TestOp::TestNegativeClear => assert!(!self.status.negative, "Negative flag should not be set"),
-                    TestOp::TestOverflowSet => assert!(self.status.overflow, "Overflow flag should be set"),
-                    TestOp::TestOverflowClear => assert!(!self.status.overflow, "Overflow flag should not be set"),
-                    TestOp::TestDecimalSet => assert!(self.status.decimal, "Decimal flag should be set"),
-                    TestOp::TestDecimalClear => assert!(!self.status.decimal, "Decimal flag should not be set"),
-                    TestOp::TestInterruptSet => assert!(self.status.irq_disable, "Interrupt disable flag should be set"),
-                    TestOp::TestInterruptClear => assert!(!self.status.irq_disable, "Interrupt disable flag should not be set"),
-                    TestOp::TestBreakSet => assert!(self.status.brk, "Break flag should be set"),
-                    TestOp::TestBreakClear => assert!(!self.status.brk, "Break flag should not be set"),
-                    TestOp::TestAddressContents => {
-                        address += 1;
-                        let test_address = self.bus.read_address(address);
-                        address += 2;
-                        let expected = self.bus.read_byte(address);
-                        let actual = self.bus.read_byte(test_address);
-
-                        assert!(actual == expected,
-                            "({:02x}:{:02x}) Assertion failed on memory at address {:04x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
-                            test_id, op_num,  test_address, self.bus.read_byte(test_address), expected);
-                    },
-                    TestOp::TestStackContents => {
-                        address += 1;
-                        let position = self.bus.read_byte(address);
-                        address += 1;
-                        let expected = self.bus.read_byte(address);
-                        let actual = self.peek_stack(position);
-
-                        assert!(actual == expected,
-                            "({:02x}:{:02x}) Assertion failed on stack at position {:02x}: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
-                            test_id, op_num, position, actual, expected);
-                    },
-                    TestOp::TestStackPointer => {
-                        address += 1;
-                        let expected = self.bus.read_byte(address);
-
-                        assert!(self.stack_pointer == expected,
-                            "({:02x}:{:02x}) Assertion failed on stack pointer: \nVal:\t{:02x}\nExp:\t{:02x}\n\n",
-                            test_id, op_num, self.stack_pointer, expected);
-                    }
-                }
-                address += 1;
-                op_num += 1;
-            }
-        }
-
-        #[allow(unused_must_use)]
-        #[allow(dead_code)]
-        pub fn debug_show(&self) -> String {
-            let mut b = String::new();
-            writeln!(b, "Registers:\tStatus:");
-            self.show_registers(&mut b);
-            // writeln!(b, "Program memory (PC location in red):");
-            // self.show_program_memory(&mut b);
-            // writeln!(b, "Reset memory:");
-            // self.show_reset_memory(&mut b);
-            writeln!(b, "Stack:");
-            self.show_stack(&mut b);
-    
-            b
-        }
-    }
-
-    #[test]
-    fn verify_test_rom() {
-        let cpu = CPU::new(Memory::new(), TEST_ROM);
-        let start_address: u16 = test_rom_start();
-        let reset_vector = cpu.bus.read_address(RESET_ADDRESS);
-        assert_eq!(reset_vector, start_address);
-
-        // XXX Everything after this may need to change when the TEST_ROM changes
-
-        // ensure we start with LDX $ff, TXS
-        assert_eq!(cpu.bus.read_byte(start_address), 0xa2);
-        assert_eq!(cpu.bus.read_byte(start_address + 1), 0xff);
-        assert_eq!(cpu.bus.read_byte(start_address + 2), 0x9a);
-
-        // ensure we know when it stops
-        let end = test_rom_end_of_execution();
-        assert_eq!(end, start_address + 3);
-        assert_eq!(cpu.bus.read_byte(end), 0x00);
-    }
+    use super::test_framework::*;
 
     #[test]
     fn creation() {
