@@ -98,9 +98,6 @@ impl<B: Bus> CPU<B> {
         // Read a byte
         let opcode = self.bus.read_byte(self.program_counter);
 
-        // Identify the operator
-        // debug!("opcode {:02X} ", opcode);
-
         // TODO We should get the number of cycles from execute_instruction(), not a static table.
 
         match decode_instruction(opcode) {
@@ -128,8 +125,10 @@ impl<B: Bus> CPU<B> {
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
 
-                // TODO: provide custom debug stuff for address_mode
-                debug!("{:04x}: opcode {:02x} -> {:02x?}/{:02x?}/{:02x?} -> {:02x?} {:02x?}", self.program_counter, opcode, instruction, address_mode, operand_bytes, instruction, operand);
+                debug!("{:04x}:{:02x} -> {} {} -> {} {}", 
+                    self.program_counter, opcode, 
+                    instruction, address_mode.debug_format(operand_bytes),
+                    instruction, operand.debug_format());
 
                 // Advance the program counter by the correct number of bytes
                 // This is done before the instruction is executed, so that the instruction can
@@ -371,7 +370,17 @@ impl<B: Bus> CPU<B> {
             Instruction::INX => { self.set_x_index(self.x_index.wrapping_add(1)) },
             Instruction::INY => { self.set_y_index(self.y_index.wrapping_add(1)) },
             Instruction::JMP => { self.do_jump(instruction, operand); },
-            Instruction::JSR => todo!(),
+            Instruction::JSR => {
+                match operand {
+                    Operand::Address(address) => {
+                        let return_address = self.program_counter.wrapping_sub(1);
+                        self.push_stack((return_address >> 8) as u8);
+                        self.push_stack(return_address as u8);
+                        self.program_counter = address;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::LDA => {
                 match operand {
                     Operand::Immediate(value) => {

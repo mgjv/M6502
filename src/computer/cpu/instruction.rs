@@ -1,4 +1,4 @@
-
+use std::ops::Add;
 
 // Possible address modes for the above instructions
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -19,7 +19,7 @@ pub enum AddressMode {
 }
 
 // What sort of argument unwrapping/fetching may need to happen
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, strum_macros::Display)]
 pub enum Operand {
     Implied,
     Immediate(u8),
@@ -43,6 +43,34 @@ impl AddressMode {
             AddressMode::Zeropage => 1,
             AddressMode::ZeropageX => 1,
             AddressMode::ZeropageY => 1,
+        }
+    }
+
+    pub fn debug_format(&self, bytes: [u8; 2]) -> String {
+        match self {
+            AddressMode::Accumulator => format!(""),
+            AddressMode::Absolute => format!("${:02x}{:02x}", bytes[1], bytes[0]),
+            AddressMode::AbsoluteX => format!("${:02x}{:02x}, X", bytes[1], bytes[0]),
+            AddressMode::AbsoluteY => format!("${:02x}{:02x}, Y", bytes[1], bytes[0]),
+            AddressMode::Immediate => format!("#${:02x}", bytes[0]),
+            AddressMode::Implied => format!(""),
+            AddressMode::Indirect => format!("(${:02x}{:02x})", bytes[1], bytes[0]),
+            AddressMode::IndirectX => format!("(${:02x}, X)", bytes[0]),
+            AddressMode::IndirectY => format!("(${:02x}), Y", bytes[0]),
+            AddressMode::Relative => format!("${:02x}", bytes[0]),
+            AddressMode::Zeropage => format!("${:02x}", bytes[0]),
+            AddressMode::ZeropageX => format!("${:02x}, X", bytes[0]),
+            AddressMode::ZeropageY => format!("${:02x}, Y", bytes[0]),
+        }
+    }
+}
+
+impl Operand {
+    pub fn debug_format(&self) -> String {
+        match self {
+            Operand::Implied => format!(""),
+            Operand::Immediate(byte) => format!("#${:02x}", byte),
+            Operand::Address(address) => format!("${:04x}", address),
         }
     }
 }
