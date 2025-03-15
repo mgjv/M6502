@@ -110,6 +110,7 @@ mod tests {
     #[test_case("bitshift"; "bit shift insgtructions")]
     #[test_case("add_with_carry"; "add with carry")]
     #[test_case("comparison"; "comparison instructions")]
+    #[test_case("other"; "other instructions")]
     fn assembly(test_name: &str) {
         let _ = env_logger::builder()
             .is_test(true)

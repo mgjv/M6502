@@ -130,7 +130,7 @@ impl <B: Bus> CPU<B> {
         //debug!("{:04x}: Verifying test with id {:02x}", start_address, test_id);
 
         let mut address = start_address;
-        let mut op_num = 1;
+        let mut op_num = 0; // because Test Start should be 0
         loop {
             let test_op_code = self.bus.read_byte(address);
             let test_op = TestOp::try_from(test_op_code).expect(

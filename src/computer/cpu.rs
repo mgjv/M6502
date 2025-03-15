@@ -259,7 +259,17 @@ impl<B: Bus> CPU<B> {
                     self.do_jump(instruction, operand);
                 }
             },
-            Instruction::BIT => todo!(),
+            Instruction::BIT => {
+                match operand {
+                    Operand::Address(address) => {
+                        let value = self.bus.read_byte(address);
+                        self.status.zero = self.accumulator & value == 0;
+                        self.status.overflow = value & 0x40 != 0;
+                        self.status.negative = value & 0x80 != 0;
+                    },
+                    _ => illegal_opcode(instruction, operand),
+                }
+            },
             Instruction::BMI => {
                 if self.status.negative {
                     self.do_jump(instruction, operand);
