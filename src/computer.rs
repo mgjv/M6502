@@ -2,7 +2,7 @@ mod cpu;
 mod memory;
 pub mod clock;
 
-use cpu::CPU;
+use cpu::Cpu;
 use memory::Memory;
 use clock::*;
 
@@ -15,24 +15,24 @@ const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
 #[derive(Debug)]
 pub struct Computer<C: Clock> {
-    cpu: CPU<Memory>,
+    cpu: Cpu<Memory>,
     clock: C,
 }
 
 impl<C: Clock> Computer<C> {
     pub fn new(rom_data: &[u8], clock: C) -> Self {
 
-        let cpu = CPU::new(Memory::new(), rom_data);
+        let cpu = Cpu::new(Memory::new(), rom_data);
 
         let mut new_computer = Self {
-            cpu: cpu,
-            clock: clock,
+            cpu,
+            clock,
         };
 
         // Run the computer, until interrupt
         new_computer.run();
 
-        return new_computer
+        new_computer
     }
 }
 
@@ -72,7 +72,7 @@ impl<C: Clock> Computer<C> {
         writeln!(b, "Stack:");
         self.cpu.show_stack(&mut b);
 
-        return b
+        b
     }
 }
 
@@ -130,18 +130,18 @@ mod tests {
     fn create_test_computer() -> Computer<SpeedyClock> {
         MAKE_ASSEMBLY.call_once(build_assembly);
         let rom_file_name = Path::new("assembly/basic.rom");
-        let rom = std::fs::read(rom_file_name).expect(
-            format!("Was not able to load rom from {}", rom_file_name.display()).as_str()
-        );
+        let rom = std::fs::read(rom_file_name).unwrap_or_else(|_| panic!(
+            "Was not able to load rom from {}", rom_file_name.display()
+        ));
         Computer::new(&rom, SpeedyClock {})
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {
         MAKE_ASSEMBLY.call_once(build_assembly);
         let program_file_name = Path::new(file_name);
-        std::fs::read(program_file_name).expect(
-            format!("Was not able to load program from {}", program_file_name.display()).as_str()
-        )
+        std::fs::read(program_file_name).unwrap_or_else(|_| panic!(
+            "Was not able to load program from {}", program_file_name.display()
+        ))
     }
 
     fn build_assembly() {

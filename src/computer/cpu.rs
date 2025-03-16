@@ -25,7 +25,7 @@ const IRQ_ADDRESS: u16 = 0xfffe;
 
 // The CPU
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub struct CPU<B: Bus> {
+pub struct Cpu<B: Bus> {
     pub bus: B,
 
     accumulator: u8,
@@ -38,11 +38,11 @@ pub struct CPU<B: Bus> {
     status: Status,
 }
 
-impl<B: Bus> CPU<B> {
+impl<B: Bus> Cpu<B> {
     pub fn new(bus: B, rom: &[u8]) -> Self {
 
          let mut new_cpu = Self {
-            bus: bus,
+            bus,
             accumulator: 0,
             x_index: 0,
             y_index: 0,
@@ -59,15 +59,11 @@ impl<B: Bus> CPU<B> {
 
         // FIXME this duplicates computer.run() a bit
         // Execute whatever instructions the ROM wants executing
-        loop {
-            match new_cpu.fetch_and_execute() {
-                Some(_) => {},
-                None => break,
-            }
+        while new_cpu.fetch_and_execute().is_some() {
+            // Do nothing
         }
 
-
-        return new_cpu
+        new_cpu
     }
 
     // Load the given memory at the end of the address range
@@ -96,8 +92,6 @@ impl<B: Bus> CPU<B> {
         // Read a byte
         let opcode = self.bus.read_byte(self.program_counter);
 
-        // TODO We should get the number of cycles from execute_instruction(), not a static table.
-
         match decode_instruction(opcode) {
             // FIXME This isn't the right implementation for BRK
             Some((Instruction::BRK, _, _)) => {
@@ -111,6 +105,7 @@ impl<B: Bus> CPU<B> {
                 None
             },
             #[cfg(test)]
+            #[allow(clippy::assertions_on_constants)]
             Some((Instruction::FAIL, _, _)) => {
                 assert!(false, "Address {:04x} contains FAIL.", self.program_counter);
                 None
@@ -122,6 +117,8 @@ impl<B: Bus> CPU<B> {
                 let operand_size = address_mode.operand_size();
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
                 let operand = self.get_operand(address_mode, operand_bytes);
+                // update cycles with extra if page boundaries are crossed
+                let cycles = cycles + self.get_extra_cyles(address_mode, operand_bytes);
 
                 debug!("{:04x}:{:02x} -> {} {} -> {} {}",
                     self.program_counter, opcode,
@@ -150,10 +147,8 @@ impl<B: Bus> CPU<B> {
             None => {
                 // This shouldn't happen
                 error!("{:04x}: Unused opcode {:02x} found", self.program_counter, opcode);
-                // TODO Decide what should happen here in production code
-                #[cfg(test)]
-                assert!(false);
-                None
+                // TODO Decide what should happen here in production code. panic is fine for test
+                panic!()
             },
         }
     }
@@ -162,31 +157,74 @@ impl<B: Bus> CPU<B> {
         self.bus.memory_size()
     }
 
+    fn get_extra_cyles(&self, address_mode: AddressMode, bytes: [u8; 2]) -> u8 {
+        match address_mode {
+            AddressMode::AbsoluteX => {
+                let address = bytes_to_address(&bytes).wrapping_add(self.x_index.into());
+                self.crosses_page_boundary(address) as u8
+            },
+            AddressMode::AbsoluteY => {
+                let address = bytes_to_address(&bytes).wrapping_add(self.y_index.into());
+                self.crosses_page_boundary(address) as u8
+            },
+            AddressMode::IndirectY => {
+                // Get the address of the zero page given
+                let address = lo_hi_to_address(bytes[0], 0x00);
+                // Read the actual address stored at the given address and offset by Y
+                let address = bytes_to_address(&self.bus.read_two_bytes(address))
+                    .wrapping_add(self.y_index.into());
+                self.crosses_page_boundary(address) as u8
+            }
+            AddressMode::Relative => {
+                // offset is a 2's complement signed byte
+                let offset = bytes[0] as i8;
+                // offset is relative to immediate next instruction address
+                let address = self.program_counter.wrapping_add(2).wrapping_add(offset as u16);
+
+                1 + self.crosses_page_boundary(address) as u8
+            }
+
+            _ => 0,
+        }
+    }
+
     fn get_operand(&self, addressmode: AddressMode, bytes: [u8; 2]) -> Operand {
         match addressmode {
             AddressMode::Accumulator => Operand::Implied,
-            AddressMode::Absolute    => Operand::Address(bytes_to_address(&bytes)),
-            AddressMode::AbsoluteX   => Operand::Address(bytes_to_address(&bytes).wrapping_add(self.x_index.into())),
-            AddressMode::AbsoluteY   => Operand::Address(bytes_to_address(&bytes).wrapping_add(self.y_index.into())),
+            AddressMode::Absolute    => {
+                let address = bytes_to_address(&bytes);
+                Operand::Address(address)
+            },
+            AddressMode::AbsoluteX   => {
+                let address = bytes_to_address(&bytes).wrapping_add(self.x_index.into());
+                Operand::Address(address)
+            },
+            AddressMode::AbsoluteY   => {
+                let address = bytes_to_address(&bytes).wrapping_add(self.y_index.into());
+                Operand::Address(address)
+            },
             AddressMode::Immediate   => Operand::Immediate(bytes[0]),
             AddressMode::Implied     => Operand::Implied,
             AddressMode::Indirect    => {
                 let address = bytes_to_address(&bytes);
-                let new_bytes = self.bus.read_two_bytes(address);
-                Operand::Address(bytes_to_address(&new_bytes))
+                // Read the actual address stored at the givenm address
+                let address = bytes_to_address(&self.bus.read_two_bytes(address));
+                Operand::Address(address)
             },
             AddressMode::IndirectX   => {
-                // Add X to zero page address stored in bytes[0]. Return address stored there
+                // Add X to zero page address stored in bytes[0].
                 let address = lo_hi_to_address(bytes[0].wrapping_add(self.x_index), 0x00);
-                let new_bytes = self.bus.read_two_bytes(address);
-                Operand::Address(bytes_to_address(&new_bytes))
+                // Read the actual address stored at the given address
+                let address = bytes_to_address(&self.bus.read_two_bytes(address));
+                Operand::Address(address)
             },
             AddressMode::IndirectY   => {
-                // Add contents of Y to address stored in zero page at byte[0] and byte[0] + 1, and return
+                // Get the address of the zero page given
                 let address = lo_hi_to_address(bytes[0], 0x00);
-                let new_bytes = self.bus.read_two_bytes(address);
-                //debug!("read from {:04x}: address bytes: {:02x?}", address, bytes);
-                Operand::Address(bytes_to_address(&new_bytes).wrapping_add(self.y_index.into()))
+                // Read the actual address stored at the given address and offset by Y
+                let address = bytes_to_address(&self.bus.read_two_bytes(address))
+                    .wrapping_add(self.y_index.into());
+                Operand::Address(address)
             },
             AddressMode::Relative    => {
                 // offset is a 2's complement signed byte
@@ -195,10 +233,25 @@ impl<B: Bus> CPU<B> {
                 let address = self.program_counter.wrapping_add(2).wrapping_add(offset as u16);
                 Operand::Address(address)
             },
-            AddressMode::Zeropage    => Operand::Address(lo_hi_to_address(bytes[0], 0)),
-            AddressMode::ZeropageX   => Operand::Address(lo_hi_to_address(bytes[0], 0).wrapping_add(self.x_index.into())),
-            AddressMode::ZeropageY   => Operand::Address(lo_hi_to_address(bytes[0], 0).wrapping_add(self.y_index.into())),
+            AddressMode::Zeropage    => {
+                let address = lo_hi_to_address(bytes[0], 0);
+                Operand::Address(address)
+            },
+            AddressMode::ZeropageX   => {
+                let address = lo_hi_to_address(bytes[0], 0).wrapping_add(self.x_index.into());
+                Operand::Address(address)
+            },
+            AddressMode::ZeropageY   => {
+                let address = lo_hi_to_address(bytes[0], 0).wrapping_add(self.y_index.into());
+                Operand::Address(address)
+            },
         }
+    }
+
+    fn crosses_page_boundary(&self, address: u16) -> bool {
+        let pc_page = self.program_counter & 0xff00;
+        let address_page = address & 0xff00;
+        pc_page != address_page
     }
 
     fn execute_instruction(&mut self, instruction: Instruction, operand: Operand) {
@@ -613,7 +666,7 @@ impl<B: Bus> CPU<B> {
             },
             #[cfg(test)]
             Instruction::FAIL | Instruction::HALT => {
-                assert!(false, "{} should already have been handled before this", instruction);
+                panic!("{} should already have been handled before this", instruction);
             },
         }
     }
@@ -781,7 +834,7 @@ pub mod tests {
 
     #[test]
     fn creation() {
-        let cpu = CPU::new(Memory::new(), TEST_ROM);
+        let cpu = Cpu::new(Memory::new(), TEST_ROM);
 
         assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start());
 
@@ -798,7 +851,7 @@ pub mod tests {
     #[test]
     fn load_program() {
         let program = [0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
-        let mut cpu = CPU::new(Memory::new(), TEST_ROM);
+        let mut cpu = Cpu::new(Memory::new(), TEST_ROM);
 
         // pretend we loaded a ROM with this vector
         let load_address = 0xc000;
@@ -806,16 +859,16 @@ pub mod tests {
 
         cpu.load_program(load_address, &program);
 
-        for i in 0..program.len() {
+        for (i, &byte) in program.iter().enumerate() {
             let data = cpu.bus.read_byte(load_address + i as u16);
-            assert_eq!(program[i], data);
+            assert_eq!(byte, data);
         }
     }
 
     #[test]
     fn load_rom() {
         let rom = [0x10, 0x20, 0x30, 0x40];
-        let mut cpu = CPU::new(Memory::new(), TEST_ROM);
+        let mut cpu = Cpu::new(Memory::new(), TEST_ROM);
 
         cpu.load_rom(&rom);
 

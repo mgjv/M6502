@@ -31,7 +31,7 @@ pub trait Bus: Debug {
     fn read_byte(&self, address: u16) -> u8;
 
     fn read_two_bytes(&self, address: u16) -> [u8; 2] {
-        if address >= 0xffff {
+        if address == 0xffff {
             error!("Attempt to read past end of memory");
         }
         [
@@ -70,6 +70,9 @@ pub trait Bus: Debug {
         lo_hi_to_address(b[0], b[1])
     }
 }
+
+// TODO add a 'proper' bus implementation with multiple rom and ram regions
+// and special handling of addresses where needed
 
 // We will limit the address range from 0x0000 to 0xFFFF
 const MAX_MEMORY_SIZE: usize = u16::MAX as usize + 1;

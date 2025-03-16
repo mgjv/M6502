@@ -2,7 +2,7 @@ use super::*;
 use log::debug;
 use std::fmt::Write;
 
-pub const TEST_ROM: &'static[u8] =
+pub const TEST_ROM: &[u8] =
     &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
        0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x00, 0x00 ];
 
@@ -13,7 +13,7 @@ pub fn test_rom_start() -> u16 {
 pub fn test_rom_end_of_execution () -> u16 {
     // find the first 0x00
     let offset = TEST_ROM.iter().position(|&b| b == 0x00).unwrap() as u16;
-    test_rom_start() + offset as u16
+    test_rom_start() + offset
 }
 
 #[derive(Debug, PartialEq, strum_macros::Display)]
@@ -49,26 +49,26 @@ impl TestOp {
     fn debug_format(&self, bytes: &[u8; 4]) -> String {
         match self {
             TestOp::TestStart => format!("Test Start {:02x}", bytes[0]),
-            TestOp::TestEnd => format!("Test End"),
+            TestOp::TestEnd => "Test End".to_string(),
 
             TestOp::TestA => format!("Test A == ${:02x}", bytes[0]),
             TestOp::TestX => format!("Test X == ${:02x}", bytes[0]),
             TestOp::TestY => format!("Test Y == ${:02x}", bytes[0]),
 
-            TestOp::TestCarrySet => format!("Test CarrySet"),
-            TestOp::TestCarryClear => format!("Test CarryClear"),
-            TestOp::TestZeroSet => format!("Test ZeroSet"),
-            TestOp::TestZeroClear => format!("Test ZeroClear"),
-            TestOp::TestNegativeSet => format!("Test NegativeSet"),
-            TestOp::TestNegativeClear => format!("Test NegativeClear"),
-            TestOp::TestOverflowSet => format!("Test OverflowSet"),
-            TestOp::TestOverflowClear => format!("Test OverflowClear"),
-            TestOp::TestDecimalSet => format!("Test DecimalSet"),
-            TestOp::TestDecimalClear => format!("Test DecimalClear"),
-            TestOp::TestInterruptSet => format!("Test InterruptSet"),
-            TestOp::TestInterruptClear => format!("Test InterruptClear"),
-            TestOp::TestBreakSet => format!("Test BreakSet"),
-            TestOp::TestBreakClear => format!("Test BreakClear"),
+            TestOp::TestCarrySet => "Test CarrySet".to_string(),
+            TestOp::TestCarryClear => "Test CarryClear".to_string(),
+            TestOp::TestZeroSet => "Test ZeroSet".to_string(),
+            TestOp::TestZeroClear => "Test ZeroClear".to_string(),
+            TestOp::TestNegativeSet => "Test NegativeSet".to_string(),
+            TestOp::TestNegativeClear => "Test NegativeClear".to_string(),
+            TestOp::TestOverflowSet => "Test OverflowSet".to_string(),
+            TestOp::TestOverflowClear => "Test OverflowClear".to_string(),
+            TestOp::TestDecimalSet => "Test DecimalSet".to_string(),
+            TestOp::TestDecimalClear => "Test DecimalClear".to_string(),
+            TestOp::TestInterruptSet => "Test InterruptSet".to_string(),
+            TestOp::TestInterruptClear => "Test InterruptClear".to_string(),
+            TestOp::TestBreakSet => "Test BreakSet".to_string(),
+            TestOp::TestBreakClear => "Test BreakClear".to_string(),
 
             TestOp::TestAddressContents =>
                 format!("Test AddressContents(${:02x}{:02x}) == ${:02x}", bytes[1], bytes[0], bytes[2]),
@@ -114,15 +114,15 @@ impl TryFrom<u8> for TestOp {
 }
 
 // Add some methods to be used in integration tests in computer
-impl <B: Bus> CPU<B> {
+impl <B: Bus> Cpu<B> {
     // This is called by the pseudo test instruction VRFY
     // The test parameters start at the given address
     pub fn verify_test(&self, start_address: u16) {
 
         let first_op_code = self.bus.read_byte(start_address);
-        let first_op = TestOp::try_from(first_op_code).expect(
-            &format!("Invalid test operation {:02x} at address {:04x}", first_op_code, start_address)
-        );
+        let first_op = TestOp::try_from(first_op_code).unwrap_or_else(|_| panic!(
+            "Invalid test operation {:02x} at address {:04x}", first_op_code, start_address
+        ));
         assert!(first_op == TestOp::TestStart,
             "Invalid test start byte {:02x} at address {:04x}", self.bus.read_byte(start_address), start_address);
         let test_id = self.bus.read_byte(start_address + 1);
@@ -133,9 +133,9 @@ impl <B: Bus> CPU<B> {
         let mut op_num = 0; // because Test Start should be 0
         loop {
             let test_op_code = self.bus.read_byte(address);
-            let test_op = TestOp::try_from(test_op_code).expect(
-                &format!("Invalid test operation {:02x} at address {:04x}", test_op_code, address)
-            );
+            let test_op = TestOp::try_from(test_op_code).unwrap_or_else(|_| panic!(
+                "Invalid test operation {:02x} at address {:04x}", test_op_code, address
+            ));
 
             debug!("{:04x}:{:02x} (T {:02x}:{}) -> {}",
                 start_address, test_op_code, test_id, op_num,
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn verify_test_rom() {
-        let cpu = CPU::new(Memory::new(), TEST_ROM);
+        let cpu = Cpu::new(Memory::new(), TEST_ROM);
         let start_address: u16 = test_rom_start();
         let reset_vector = cpu.bus.read_address(RESET_ADDRESS);
         assert_eq!(reset_vector, start_address);

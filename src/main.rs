@@ -51,16 +51,14 @@ fn main() {
 
 fn read_bytes_from_file(file: PathBuf) -> Vec<u8> {
     let file_name = file.as_path();
-    std::fs::read(file_name).expect(
-        format!("Was not able to load bytes from {}", file_name.display()).as_str()
-    )
+    std::fs::read(file_name).unwrap_or_else(|_| panic!(
+        "Was not able to load bytes from {}", file_name.display()
+    ))
 }
-
-use log;
 
 fn show_debug(s: &str) {
     if log::max_level() >= log::LevelFilter::Debug {
-        print!("{}\n", s);
+        println!("{}", s);
     }
 }
 

@@ -46,12 +46,12 @@ impl AddressMode {
 
     pub fn debug_format(&self, bytes: [u8; 2]) -> String {
         match self {
-            AddressMode::Accumulator => format!(""),
+            AddressMode::Accumulator => "".to_string(),
             AddressMode::Absolute => format!("${:02x}{:02x}", bytes[1], bytes[0]),
             AddressMode::AbsoluteX => format!("${:02x}{:02x}, X", bytes[1], bytes[0]),
             AddressMode::AbsoluteY => format!("${:02x}{:02x}, Y", bytes[1], bytes[0]),
             AddressMode::Immediate => format!("#${:02x}", bytes[0]),
-            AddressMode::Implied => format!(""),
+            AddressMode::Implied => "".to_string(),
             AddressMode::Indirect => format!("(${:02x}{:02x})", bytes[1], bytes[0]),
             AddressMode::IndirectX => format!("(${:02x}, X)", bytes[0]),
             AddressMode::IndirectY => format!("(${:02x}), Y", bytes[0]),
@@ -66,7 +66,7 @@ impl AddressMode {
 impl Operand {
     pub fn debug_format(&self) -> String {
         match self {
-            Operand::Implied => format!(""),
+            Operand::Implied => "".to_string(),
             Operand::Immediate(byte) => format!("#${:02x}", byte),
             Operand::Address(address) => format!("${:04x}", address),
         }
@@ -362,6 +362,7 @@ pub const fn decode_instruction(op_code: u8) -> Option<(Instruction, AddressMode
 }
 
 // The Instructions that the COU can execute
+#[allow(clippy::upper_case_acronyms)]
 #[derive(Copy, Clone, Debug, strum_macros::Display)]
 pub enum Instruction {
     ADC, // add with carry

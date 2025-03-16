@@ -1,13 +1,13 @@
 use super::*;
 
 // Formatting/Display functions for the CPU type
-impl<B: Bus> CPU<B> {
+impl<B: Bus> Cpu<B> {
 
     pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
         write!(b, " A   X   Y")?;
         write!(b, "\tN O {color_bright_black}- B{color_reset} D I Z C")?;
         write!(b, "\t\tNMI  RST  IRQ")?;
-        write!(b, "\n")?;
+        writeln!(b)?;
 
         // compute registers
         write!{b, " {:02X}  {:02X}  {:02X}",
@@ -32,7 +32,7 @@ impl<B: Bus> CPU<B> {
             self.bus.read_address(RESET_ADDRESS),
             self.bus.read_address(IRQ_ADDRESS))?;
 
-        write!(b, "\n")?;
+        writeln!(b)?;
         Ok(())
     }
 
@@ -70,7 +70,7 @@ impl<B: Bus> CPU<B> {
 
             if address == focal_address { write!(b, "{color_reset}")?; }
 
-            if address % 16 == 15 { write!(b, "\n")?; }
+            if address % 16 == 15 { writeln!(b)?; }
         }
         Ok(())
     }

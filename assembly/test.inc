@@ -116,6 +116,7 @@
     PHA ; save current value of A
     PHP ; push the status register again to copy into A
     PLA ; pull the status register into A
+
     .ifnblank mask
     AND #mask ; mask the bits we want
     .else
