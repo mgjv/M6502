@@ -116,7 +116,7 @@ mod tests {
             .format_target(false)
             .try_init();
         let mut computer = create_test_computer();
-        let file_name = format!("assembly/{}.test.bin", test_name);
+        let file_name = format!("assembly/{}.test", test_name);
         let program = read_program(file_name.as_str());
         // NOTE: See assembly/test.cfg
         let start_address = 0x1000;

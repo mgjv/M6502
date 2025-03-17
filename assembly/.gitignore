@@ -1,5 +1,5 @@
 *.o
-*.rom
 *.rom.map
-*.bin
-*.log
+*.rom
+*.test
+*.program

@@ -1,11 +1,11 @@
 PROGRAM_SOURCES := $(wildcard *.program.s)
-PROGRAM_TARGETS := $(PROGRAM_SOURCES:%.program.s=%.program.bin)
+PROGRAM_TARGETS := $(PROGRAM_SOURCES:.s=)
 
 ROM_SOURCES := $(wildcard *.rom.s)
 ROM_TARGETS := $(ROM_SOURCES:.s=)
 
 TEST_SOURCES := $(wildcard *.test.s)
-TEST_TARGETS := $(TEST_SOURCES:.s=.bin)
+TEST_TARGETS := $(TEST_SOURCES:.s=)
 
 CA65 := ca65
 CL65 := cl65
@@ -13,10 +13,10 @@ LD65 := ld65
 
 all: $(TEST_TARGETS) $(PROGRAM_TARGETS) $(ROM_TARGETS)
 
-%.program.bin: %.p.s
+%.program: %.program.s
 	$(CL65) -t none -o $@ $<
 
-%.test.bin: %.test.s test.inc test.cfg
+%.test: %.test.s test.inc test.cfg
 	$(CL65) -t none -C test.cfg -o $@ $<
 
 %.rom: %.rom.s %.rom.cfg
