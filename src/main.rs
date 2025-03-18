@@ -5,7 +5,6 @@ mod tui;
 use std::path::{Path, PathBuf};
 
 use computer::Computer;
-use computer::clock::NormalClock;
 use clap::Parser;
 
 #[derive(Parser)]
@@ -37,7 +36,7 @@ fn main() {
 
 fn run_computer(rom_file: &Path, program_file: &Path) {
     let rom_data = read_bytes_from_file(rom_file);
-    let mut computer = Computer::new(&rom_data, NormalClock::default()).unwrap();
+    let mut computer = Computer::new(&rom_data).unwrap();
     show_debug(&computer.startup_message());
 
     show_debug(&computer.show_state());

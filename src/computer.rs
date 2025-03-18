@@ -4,29 +4,60 @@ pub mod clock;
 
 use cpu::Cpu;
 use bus::{Bus, Ram};
-use clock::*;
+use clock::{Clock, ClockTrait, TickCount};
 
-use std::fmt::Write;
+use std::{fmt::Write, path::PathBuf};
 
-// TODO Work on memory mapping in memory.rs to allow smaller memory
-// while still providing the needed vectors at the end of memory space
-// IOW, maybe implement a 'proper' address and data bus
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
+#[derive(Default)]
+pub struct ComputerBuilder {
+    clock: Clock,
+    bus: Option<Bus>,
+    cpu: Option<Cpu>,
+    rom_file: Option<PathBuf>,
+    memory: Option<Ram>,
+}
+
+impl ComputerBuilder {
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+
+    pub fn with_clock(mut self, clock: Clock) -> Self {
+        self.clock = clock;
+        self
+    }
+
+    pub fn build(self) -> Computer {
+        let mut computer = Computer {
+            cpu: self.cpu.unwrap(),
+            clock: self.clock,
+        };
+
+        //computer.load_rom_file(&self.rom_file);
+
+        computer
+    }
+}
+
 #[derive(Debug)]
-pub struct Computer<C: Clock> {
+pub struct Computer {
     cpu: Cpu,
     //bus: Rc<dyn Addressable>,
-    clock: C,
+    clock: Clock,
 }
 
 // TODO Fix clock type
-impl<C: Clock> Computer<C> {
-    pub fn new(rom_data: &[u8], clock: C) -> Result<Self, String> {
+impl Computer {
+    pub fn new(rom_data: &[u8]) -> Result<Self, String> {
 
         let bus = Bus::new()
             .add_ram(Ram::default(), 0x0)?
             .add_rom_at_end(rom_data)?;
+        let clock = Clock::default();
 
         let cpu = Cpu::new(bus);
 
@@ -41,9 +72,14 @@ impl<C: Clock> Computer<C> {
 
         Ok(new_computer)
     }
+
+    pub fn with_clock(mut self, clock: Clock) -> Self {
+        self.clock = clock;
+        self
+    }
 }
 
-impl<C: Clock> Computer<C> {
+impl Computer {
     pub fn run(&mut self) {
         let mut number_of_ticks: TickCount = 1;
         loop {
@@ -93,6 +129,8 @@ mod tests {
     use test_case::test_case;
     use std::sync::Once;
 
+    use clock::SpeedyClock;
+
     static MAKE_ASSEMBLY: Once = Once::new();
 
     use super::*;
@@ -134,13 +172,14 @@ mod tests {
 
     // HELPERS
 
-    fn create_test_computer() -> Computer<SpeedyClock> {
+    fn create_test_computer() -> Computer {
         MAKE_ASSEMBLY.call_once(build_assembly);
         let rom_file_name = Path::new("assembly/basic.rom");
         let rom = std::fs::read(rom_file_name).unwrap_or_else(|_| panic!(
             "Was not able to load rom from {}", rom_file_name.display()
         ));
-        Computer::new(&rom, SpeedyClock {}).unwrap()
+        Computer::new(&rom).unwrap()
+            .with_clock(Clock::Speedy(SpeedyClock {}))
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {

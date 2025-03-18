@@ -7,8 +7,29 @@ use super::DEFAULT_CLOCK_SPEED;
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature
 pub type TickCount = u8;
 
-pub trait Clock: Debug {
+pub trait ClockTrait: Debug + Default {
     fn tick(&mut self, tick_count: TickCount);
+}
+
+#[derive(Debug)]
+pub enum Clock {
+    Normal(NormalClock),
+    Speedy(SpeedyClock),
+}
+
+impl Default for Clock {
+    fn default() -> Self {
+        Self::Normal(NormalClock::default())
+    }
+}
+
+impl ClockTrait for Clock {
+    fn tick(&mut self, tick_count: TickCount) {
+        match self {
+            Self::Normal(c) => c.tick(tick_count),
+            Self::Speedy(c) => c.tick(tick_count),
+        }
+    }
 }
 
 // A clock that has a clock speed, and ticks accordingly
@@ -37,7 +58,7 @@ impl NormalClock {
     }
 }
 
-impl Clock for NormalClock {
+impl ClockTrait for NormalClock {
     /*
      * wait for the given number of ticks to have expired
      * This requires that the amount of time elapsed outside of this
@@ -57,9 +78,9 @@ impl Clock for NormalClock {
 }
 
 // A clock that does nothing at all to slow things down
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SpeedyClock {}
 
-impl Clock for SpeedyClock {
+impl ClockTrait for SpeedyClock {
     fn tick(&mut self, _: TickCount) {}
 }
