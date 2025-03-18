@@ -1,0 +1,46 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'm6502'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=m6502",
+                    "--package=m6502"
+                ],
+                "filter": {
+                    "name": "m6502",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'm6502'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=m6502",
+                    "--package=m6502"
+                ],
+                "filter": {
+                    "name": "m6502",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

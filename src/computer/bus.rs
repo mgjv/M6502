@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::fmt;
 
-use log::{debug, error, trace};
+use log::{trace, debug, error};
 
 // This function works in this order, because it's the order in which
 // bytes are read from memory (i.e. little endian)
@@ -17,74 +17,83 @@ pub fn address_to_bytes(address: u16) -> [u8; 2] {
     address.to_le_bytes()
 }
 
-// TODO Do we need a type?
 #[derive(Debug)]
-struct Chip {
+struct MappedAddressable {
     start: u16,
     end: u16,
-    chip: Box<dyn Addressable>,
+    addressable: Box<dyn Addressable>,
 }
 
 #[derive(Debug)]
 pub struct Bus {
-    // The addressables
-    chips: Vec<Chip>,
+    segments: Vec<MappedAddressable>,
 }
 
+
+/*
+ * Bus
+ *
+ * The Bus represents the collection of all chips in the system connected to the
+ * address and data buses. To build a bus, add segments (addressables) along with the
+ * start address where you want them mapped in memory.
+ *
+ * If two address ranges of segments overlap, the last added segment is the one that will
+ * be addressed
+ */
 impl Bus {
     pub fn new() -> Self {
         Self {
-            chips: Vec::new(),
+            segments: Vec::new(),
         }
     }
 
     // TODO addPartialRam?
+    // TODO proper error when size goes past end of memeoiry range
     pub fn add_ram(self, ram: Ram, start: u16) -> Result<Self, String> {
         let end = start + (ram.size() - 1) as u16;
         self.add_addressable(ram, start, end)
     }
 
     // TODO addPartialRom?
-    pub fn add_rom(self, rom: Ram, start: u16) -> Result<Self, String> {
-        debug!("Adding ROM of size {:x} at 0x{:04x}", rom.size(), start);
-        let end = start +(rom.size() - 1) as u16;
+    // TODO proper error when size goes past end of memeoiry range
+    pub fn add_rom(self, rom_data: &[u8], start: u16) -> Result<Self, String> {
+        debug!("Adding ROM of size {:x} at 0x{:04x}", rom_data.len(), start);
+        let end = start +(rom_data.len() - 1) as u16;
+        let rom = Ram::from(rom_data);
         self.add_addressable(rom, start, end)
     }
 
-    // TODO enforce page boundaries for start, end and size
+    pub fn add_rom_at_end(self, rom_data: &[u8]) -> Result<Self, String> {
+        let start = MAX_MEMORY_SIZE - rom_data.len();
+        self.add_rom(rom_data, start as u16)
+    }
+
     fn add_addressable<A: Addressable + 'static>(mut self, addressable: A, start: u16, end: u16) -> Result<Self, String> {
         debug!("Adding addressable of size {:x} at 0x{:04x} to 0x{:04x}", addressable.size(), start, end);
         if start > end {
             return Err(format!("Start address 0x{:04x} is greater than end address 0x{:04x}", start, end));
         }
-        if start % 0x100 != 0 {
-            return Err(format!("Start address 0x{:04x} is not aligned with page", start));
-        }
-        if addressable.size() % 0x100 != 0 {
-            return Err(format!("Addressable size {} is not aligned with pages", addressable.size()));
+        if start % 0x100 != 0 || end % 0x100 != 0xff {
+            return Err(format!("Start and end must be aligned with page boundary"));
         }
 
-        let chip = Chip {
+        let segment = MappedAddressable {
             start,
             end,
-            chip: Box::new(addressable),
+            addressable: Box::new(addressable),
         };
-        self.chips.push(chip);
+        // Insert at the front, so we don't have to iterate in reverse
+        self.segments.insert(0, segment);
         Ok(self)
-    }
-
-    // FIXME duh
-    fn memory_size(&self) -> usize {
-        MAX_MEMORY_SIZE
     }
 }
 
 impl Addressable for Bus {
 
     fn read_byte(&self, address: u16) -> u8 {
-        for chip in &self.chips {
-            if address >= chip.start && address <= chip.end {
-                return chip.chip.read_byte(address - chip.start);
+        for segment in &self.segments {
+            if address >= segment.start && address <= segment.end {
+                return segment.addressable.read_byte(address - segment.start);
             }
         }
         error!("Attempt to read from unmapped memory address 0x{:04x}", address);
@@ -92,9 +101,9 @@ impl Addressable for Bus {
     }
 
     fn write_byte(&mut self, address: u16, byte: u8) {
-        for chip in &mut self.chips {
-            if address >= chip.start && address <= chip.end {
-                chip.chip.write_byte(address - chip.start, byte);
+        for segment in &mut self.segments {
+            if address >= segment.start && address <= segment.end {
+                segment.addressable.write_byte(address - segment.start, byte);
                 return;
             }
         }
@@ -167,9 +176,10 @@ pub trait Addressable: Debug {
 // and special handling of addresses where needed
 
 // We will limit the address range from 0x0000 to 0xFFFF
-const MAX_MEMORY_SIZE: usize = u16::MAX as usize + 1;
+pub const MAX_MEMORY_SIZE: usize = u16::MAX as usize + 1;
 const DEFAULT_MEMORY_SIZE: usize = MAX_MEMORY_SIZE;
 
+#[derive(Clone)]
 pub struct Ram {
     data: Vec <u8>,
 }
@@ -266,6 +276,8 @@ mod tests {
 
     use super::*;
 
+    use test_log::test;
+
     #[test]
     fn ram_creation() {
         let memory = Ram::default();
@@ -336,5 +348,96 @@ mod tests {
         assert_eq!(bus.read_byte(0), 0);
         bus.write_byte(0, 0);
         bus.write_byte(0xffff, 0);
+    }
+
+    impl Bus {
+        fn get_segment_at_start_address(&self, address: u16) -> Option<&dyn Addressable> {
+            for segment in &self.segments {
+                if address == segment.start {
+                    return Some(&*segment.addressable);
+                }
+            }
+            None
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "Start and end must be aligned")]
+    fn unaligned_ram_size() {
+        Bus::new()
+            .add_ram(Ram::new(0x150), 0x00)
+            .unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "Start and end must be aligned")]
+    fn unaligned_start_address() {
+        Bus::new()
+            .add_ram(Ram::new(0x200), 0x0050)
+            .unwrap();
+    }
+
+    #[test]
+    fn test_overlap_bus() -> Result<(), String> {
+        let mut ram1 = Ram::new(0x200);
+        for i in 0..0x200 {
+            ram1.write_byte(i, 0x01);
+        }
+        let mut ram2 = Ram::new(0x200);
+        for i in 0..0x200 {
+            ram2.write_byte(i, 0x02);
+        }
+        // Create a bus where the two segments overlap
+        let mut bus = Bus::new()
+            .add_ram(ram1, 0x0000)?
+            .add_ram(ram2, 0x0100)?;
+
+        assert_eq!(0x01, bus.read_byte(0x0000));
+        assert_eq!(0x01, bus.read_byte(0x00ff));
+        assert_eq!(0x02, bus.read_byte(0x0100));
+        assert_eq!(0x02, bus.read_byte(0x01ff));
+
+        bus.write_byte(0x0000, 0xff);
+        bus.write_byte(0x00ff, 0xff);
+        bus.write_byte(0x0100, 0xff);
+        bus.write_byte(0x01ff, 0xff);
+
+        // During testing we can pull out a reference to the segments
+        let ram1 = bus.get_segment_at_start_address(0x0000).unwrap();
+        let ram2 = bus.get_segment_at_start_address(0x0100).unwrap();
+
+        assert_eq!(0xff, ram1.read_byte(0x0000));
+        assert_eq!(0xff, ram1.read_byte(0x00ff));
+        assert_eq!(0x01, ram1.read_byte(0x0100));
+        assert_eq!(0x01, ram1.read_byte(0x01ff));
+        assert_eq!(0xff, ram2.read_byte(0x0000));
+        assert_eq!(0xff, ram2.read_byte(0x00ff));
+        assert_eq!(0x02, ram2.read_byte(0x0100));
+        assert_eq!(0x02, ram2.read_byte(0x01ff));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_rom() -> Result<(), String> {
+        let mut test_rom1 = vec![0x00; 0x200];
+        for i in 0..0x200 {
+            test_rom1[i] = (i % 0x100) as u8;
+        }
+        let mut test_rom2 = test_rom1.clone();
+        test_rom2.reverse();
+
+        let bus = Bus::new()
+            .add_rom(&test_rom1, 0x0000)?
+            .add_rom(&test_rom2, 0xfe00)?;
+
+        assert_eq!(0x00, bus.read_byte(0x0000));
+        assert_eq!(0x01, bus.read_byte(0x0001));
+        assert_eq!(0xff, bus.read_byte(0xfe00));
+        assert_eq!(0x00, bus.read_byte(0xffff));
+
+        // TODO Roms should not be writable
+
+        Ok(())
     }
 }

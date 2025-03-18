@@ -39,9 +39,9 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    pub fn new(bus: Bus, rom: &[u8]) -> Self {
+    pub fn new(bus: Bus) -> Self {
 
-         let mut new_cpu = Self {
+        Self {
             bus,
             accumulator: 0,
             x_index: 0,
@@ -52,28 +52,7 @@ impl Cpu {
             // program_counter: reset_address,
             program_counter: 0,
             status: Status::default(),
-        };
-
-        // Load the rom and execute the reset vector
-        new_cpu.load_rom(rom);
-
-        // FIXME this duplicates computer.run() a bit
-        // Execute whatever instructions the ROM wants executing
-        while new_cpu.fetch_and_execute().is_some() {
-            // Do nothing
         }
-
-        new_cpu
-    }
-
-    // Load the given memory at the end of the address range
-    fn load_rom(&mut self, rom: &[u8]) {
-        assert!(rom.len() <= 0xffff);
-        let start_address: u16 = 0xffff - (rom.len() - 1) as u16;
-        debug!("Loading ROM at address {:04x}, length {:04x}", start_address, rom.len());
-        self.bus.write_bytes(start_address, rom);
-        self.program_counter = self.bus.read_address(RESET_ADDRESS);
-        debug!("Setting program counter to {:04x}", self.program_counter);
     }
 
     pub fn load_program(&mut self, address: u16, program: &[u8]) {
@@ -835,24 +814,18 @@ pub mod tests {
     use test_log::test;
 
     fn create_test_cpu() -> Cpu {
-        let bus = Bus::new().add_ram(Ram::default(), 0x0).unwrap();
-        Cpu::new(bus, TEST_ROM)
+        let bus = Bus::new()
+        .add_ram(Ram::default(), 0x0).unwrap()
+        .add_rom_at_end(&test_rom()).unwrap();
+        Cpu::new(bus)
     }
 
     #[test]
     fn creation() {
         let cpu = create_test_cpu();
+        assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start_of_data());
 
-        assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start());
-
-        // FIXME This expectation is incorrect, since BRK changes PC
-        // FIXME Fix this when VerifyTest is properly implemented
-        // assert_eq!(cpu.program_counter, test_rom_end_of_execution());
-        // assert_eq!(cpu.stack_pointer, 0xff);
-        assert_eq!(cpu.accumulator, 0x0);
-        // set by TEST_ROM
-        assert_eq!(cpu.x_index, 0xff);
-        assert_eq!(cpu.y_index, 0x0);
+        // TODO What else?
     }
 
     #[test]
@@ -868,18 +841,5 @@ pub mod tests {
             let data = cpu.bus.read_byte(load_address + i as u16);
             assert_eq!(byte, data);
         }
-    }
-
-    #[test]
-    fn load_rom() {
-        let mut cpu = create_test_cpu();
-
-        let rom = [0x10, 0x20, 0x30, 0x40];
-        cpu.load_rom(&rom);
-
-        assert_eq!(cpu.bus.read_byte(0xffff), 0x40);
-        assert_eq!(cpu.bus.read_byte(0xfffe), 0x30);
-        assert_eq!(cpu.bus.read_byte(0xfffd), 0x20);
-        assert_eq!(cpu.bus.read_byte(0xfffc), 0x10);
     }
 }

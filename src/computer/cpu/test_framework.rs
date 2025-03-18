@@ -2,18 +2,22 @@ use super::*;
 use log::debug;
 use std::fmt::Write;
 
-pub const TEST_ROM: &[u8] =
-    &[ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
-       0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x00, 0x00 ];
+const TEST_ROM_DATA: [u8; 0x10] =
+    [ 0xa2, 0xff, 0x9a, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0xf0, 0xff, 0x00, 0x00 ];
 
-pub fn test_rom_start() -> u16 {
-    0xffff - (TEST_ROM.len() - 1) as u16
+pub fn test_rom() -> Vec<u8> {
+    // create a verctor of one page long
+    let mut rom = vec![0x0; 0x100];
+    for (i, b) in TEST_ROM_DATA.iter().enumerate() {
+        rom[0x100 - TEST_ROM_DATA.len() + i] = *b;
+    };
+    rom
 }
 
-pub fn test_rom_end_of_execution () -> u16 {
-    // find the first 0x00
-    let offset = TEST_ROM.iter().position(|&b| b == 0x00).unwrap() as u16;
-    test_rom_start() + offset
+// what is the beginning of the meaningful part of the test rom?
+pub fn test_rom_start_of_data() -> u16 {
+    0xffff - TEST_ROM_DATA.len() as u16 + 1
 }
 
 #[derive(Debug, PartialEq, strum_macros::Display)]
@@ -239,11 +243,16 @@ mod tests {
 
     #[test]
     fn verify_test_rom() {
-        let bus = Bus::new().add_ram(Ram::default(), 0x0).unwrap();
-        let cpu = Cpu::new(bus, TEST_ROM);
-        let start_address: u16 = test_rom_start();
+
+        let bus = Bus::new()
+            .add_ram(Ram::default(), 0x0).unwrap()
+            .add_rom_at_end(&test_rom()).unwrap();
+        let cpu = Cpu::new(bus);
+
+        let start_address: u16 = test_rom_start_of_data();
         let reset_vector = cpu.bus.read_address(RESET_ADDRESS);
-        assert_eq!(reset_vector, start_address);
+        assert!(reset_vector == start_address,
+            "Reset vector {:04x} does not match start of test ROM {:04x}", reset_vector, start_address);
 
         // XXX Everything after this may need to change when the TEST_ROM changes
 
@@ -252,10 +261,7 @@ mod tests {
         assert_eq!(cpu.bus.read_byte(start_address + 1), 0xff);
         assert_eq!(cpu.bus.read_byte(start_address + 2), 0x9a);
 
-        // ensure we know when it stops
-        let end = test_rom_end_of_execution();
-        assert_eq!(end, start_address + 3);
-        assert_eq!(cpu.bus.read_byte(end), 0x00);
+        // And the next byte should be a BRK
+        assert_eq!(cpu.bus.read_byte(start_address + 3), 0x00);
     }
-
 }

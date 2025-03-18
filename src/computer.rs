@@ -3,10 +3,10 @@ mod bus;
 pub mod clock;
 
 use cpu::Cpu;
-use bus::{Addressable, Bus, Ram};
+use bus::{Bus, Ram};
 use clock::*;
 
-use std::{fmt::Write, rc::Rc};
+use std::fmt::Write;
 
 // TODO Work on memory mapping in memory.rs to allow smaller memory
 // while still providing the needed vectors at the end of memory space
@@ -16,26 +16,30 @@ const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 #[derive(Debug)]
 pub struct Computer<C: Clock> {
     cpu: Cpu,
-    bus: Rc<dyn Addressable>,
+    //bus: Rc<dyn Addressable>,
     clock: C,
 }
 
 // TODO Fix clock type
 impl<C: Clock> Computer<C> {
-    pub fn new(rom_data: &[u8], clock: C) -> Self {
-        let bus = Bus::new().add_ram(Ram::default(), 0x0).unwrap();
-        let cpu = Cpu::new(bus, rom_data);
+    pub fn new(rom_data: &[u8], clock: C) -> Result<Self, String> {
+
+        let bus = Bus::new()
+            .add_ram(Ram::default(), 0x0)?
+            .add_rom_at_end(rom_data)?;
+
+        let cpu = Cpu::new(bus);
 
         let mut new_computer = Self {
             cpu,
             clock,
-            bus: Rc::new(bus::UnconnectedBus{}),
+            //bus: Rc::new(bus::UnconnectedBus{}),
         };
 
         // Run the computer, until interrupt
         new_computer.run();
 
-        new_computer
+        Ok(new_computer)
     }
 }
 
@@ -136,7 +140,7 @@ mod tests {
         let rom = std::fs::read(rom_file_name).unwrap_or_else(|_| panic!(
             "Was not able to load rom from {}", rom_file_name.display()
         ));
-        Computer::new(&rom, SpeedyClock {})
+        Computer::new(&rom, SpeedyClock {}).unwrap()
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {
