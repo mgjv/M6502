@@ -10,7 +10,7 @@ use inline_colorization::*;
 use std::fmt;
 
 use super::clock::TickCount;
-use super::memory::*;
+use super::bus::*;
 
 
 // Standard memory locations to fetch addresses from
@@ -24,9 +24,9 @@ const IRQ_ADDRESS: u16 = 0xfffe;
  */
 
 // The CPU
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub struct Cpu<B: Bus> {
-    pub bus: B,
+#[derive(Debug)]
+pub struct Cpu {
+    pub bus: Bus,
 
     accumulator: u8,
     x_index: u8,
@@ -38,8 +38,8 @@ pub struct Cpu<B: Bus> {
     status: Status,
 }
 
-impl<B: Bus> Cpu<B> {
-    pub fn new(bus: B, rom: &[u8]) -> Self {
+impl Cpu {
+    pub fn new(bus: Bus, rom: &[u8]) -> Self {
 
          let mut new_cpu = Self {
             bus,
@@ -154,7 +154,7 @@ impl<B: Bus> Cpu<B> {
     }
 
     pub fn memory_size(&self) -> usize {
-        self.bus.memory_size()
+        self.bus.size()
     }
 
     fn get_extra_cyles(&self, address_mode: AddressMode, bytes: [u8; 2]) -> u8 {
@@ -828,13 +828,20 @@ mod test_framework;
 
 #[cfg(test)]
 pub mod tests {
-    use crate::computer::memory::Memory;
+    use crate::computer::bus::Ram;
     use super::*;
     use super::test_framework::*;
 
+    use test_log::test;
+
+    fn create_test_cpu() -> Cpu {
+        let bus = Bus::new().add_ram(Ram::default(), 0x0).unwrap();
+        Cpu::new(bus, TEST_ROM)
+    }
+
     #[test]
     fn creation() {
-        let cpu = Cpu::new(Memory::new(), TEST_ROM);
+        let cpu = create_test_cpu();
 
         assert_eq!(cpu.bus.read_address(RESET_ADDRESS), test_rom_start());
 
@@ -850,12 +857,10 @@ pub mod tests {
 
     #[test]
     fn load_program() {
-        let program = [0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
-        let mut cpu = Cpu::new(Memory::new(), TEST_ROM);
+        let mut cpu = create_test_cpu();
 
-        // pretend we loaded a ROM with this vector
+        let program = [0xa9, 0x01, 0x69, 0x02, 0x8d, 0x02];
         let load_address = 0xc000;
-        // set_reset_address(&mut cpu.bus, load_address);
 
         cpu.load_program(load_address, &program);
 
@@ -867,9 +872,9 @@ pub mod tests {
 
     #[test]
     fn load_rom() {
-        let rom = [0x10, 0x20, 0x30, 0x40];
-        let mut cpu = Cpu::new(Memory::new(), TEST_ROM);
+        let mut cpu = create_test_cpu();
 
+        let rom = [0x10, 0x20, 0x30, 0x40];
         cpu.load_rom(&rom);
 
         assert_eq!(cpu.bus.read_byte(0xffff), 0x40);

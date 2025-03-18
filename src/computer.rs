@@ -1,12 +1,12 @@
 mod cpu;
-mod memory;
+mod bus;
 pub mod clock;
 
 use cpu::Cpu;
-use memory::Memory;
+use bus::{Addressable, Bus, Ram};
 use clock::*;
 
-use std::fmt::Write;
+use std::{fmt::Write, rc::Rc};
 
 // TODO Work on memory mapping in memory.rs to allow smaller memory
 // while still providing the needed vectors at the end of memory space
@@ -15,18 +15,21 @@ const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
 #[derive(Debug)]
 pub struct Computer<C: Clock> {
-    cpu: Cpu<Memory>,
+    cpu: Cpu,
+    bus: Rc<dyn Addressable>,
     clock: C,
 }
 
+// TODO Fix clock type
 impl<C: Clock> Computer<C> {
     pub fn new(rom_data: &[u8], clock: C) -> Self {
-
-        let cpu = Cpu::new(Memory::new(), rom_data);
+        let bus = Bus::new().add_ram(Ram::default(), 0x0).unwrap();
+        let cpu = Cpu::new(bus, rom_data);
 
         let mut new_computer = Self {
             cpu,
             clock,
+            bus: Rc::new(bus::UnconnectedBus{}),
         };
 
         // Run the computer, until interrupt

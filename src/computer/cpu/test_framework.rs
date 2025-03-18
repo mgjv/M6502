@@ -114,7 +114,7 @@ impl TryFrom<u8> for TestOp {
 }
 
 // Add some methods to be used in integration tests in computer
-impl <B: Bus> Cpu<B> {
+impl Cpu {
     // This is called by the pseudo test instruction VRFY
     // The test parameters start at the given address
     pub fn verify_test(&self, start_address: u16) {
@@ -233,11 +233,14 @@ impl <B: Bus> Cpu<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::computer::memory::Memory;
+    use crate::computer::bus::Ram;
+
+    use test_log::test;
 
     #[test]
     fn verify_test_rom() {
-        let cpu = Cpu::new(Memory::new(), TEST_ROM);
+        let bus = Bus::new().add_ram(Ram::default(), 0x0).unwrap();
+        let cpu = Cpu::new(bus, TEST_ROM);
         let start_address: u16 = test_rom_start();
         let reset_vector = cpu.bus.read_address(RESET_ADDRESS);
         assert_eq!(reset_vector, start_address);

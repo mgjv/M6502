@@ -1,6 +1,8 @@
 mod computer;
+mod app;
+mod tui;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use computer::Computer;
 use computer::clock::NormalClock;
@@ -18,27 +20,29 @@ struct Cli {
     rom_map: Option<PathBuf>,
 }
 
-fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
-    let mut p = p.into_os_string();
-    p.push(s);
-    p.into()
-}
-
 fn main() {
     env_logger::init();
 
     let cli = Cli::parse();
-    let map = cli.rom_map.unwrap_or_else(|| append_to_path(cli.rom_file.clone(), ".map"));
-
+    let map = cli.rom_map.unwrap_or_else(|| {
+        let mut map = cli.rom_file.clone();
+        map.push(".map");
+        map
+    });
     println!("Map: {}", map.display());
 
-    let rom_data = read_bytes_from_file(cli.rom_file);
+    run_computer(&cli.rom_file.as_path(), cli.program_file.as_path());
+
+}
+
+fn run_computer(rom_file: &Path, program_file: &Path) {
+    let rom_data = read_bytes_from_file(rom_file);
     let mut computer = Computer::new(&rom_data, NormalClock::default());
     show_debug(&computer.startup_message());
 
     show_debug(&computer.show_state());
 
-    let program = read_bytes_from_file(cli.program_file);
+    let program = read_bytes_from_file(program_file);
     computer.load_program(0x1000, &program);
 
     // dbg!(&computer);
@@ -49,8 +53,7 @@ fn main() {
     show_debug(&computer.show_state());
 }
 
-fn read_bytes_from_file(file: PathBuf) -> Vec<u8> {
-    let file_name = file.as_path();
+fn read_bytes_from_file(file_name: &Path) -> Vec<u8> {
     std::fs::read(file_name).unwrap_or_else(|_| panic!(
         "Was not able to load bytes from {}", file_name.display()
     ))

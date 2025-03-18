@@ -1,7 +1,7 @@
 use super::*;
 
 // Formatting/Display functions for the CPU type
-impl<B: Bus> Cpu<B> {
+impl Cpu {
 
     pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
         write!(b, " A   X   Y")?;

@@ -7,7 +7,6 @@ use super::DEFAULT_CLOCK_SPEED;
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature
 pub type TickCount = u8;
 
-
 pub trait Clock: Debug {
     fn tick(&mut self, tick_count: TickCount);
 }
