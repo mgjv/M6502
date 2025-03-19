@@ -120,10 +120,6 @@ impl Computer {
 
     // Formatting/Display functions
 
-    pub fn startup_message(&self) -> String {
-        format!("6502 emulator - {} bytes memory", self.cpu.memory_size())
-    }
-
     #[allow(unused_must_use)]
     pub fn show_state(&self) -> String {
         let mut buffer = String::new();
@@ -160,8 +156,7 @@ mod tests {
 
     #[test]
     fn construction() {
-        let computer = create_test_computer();
-        print!("{}", computer.startup_message());
+        create_test_computer();
     }
 
     #[test_case("framework"; "test framework")]

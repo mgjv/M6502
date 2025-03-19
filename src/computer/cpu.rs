@@ -129,10 +129,6 @@ impl Cpu {
         }
     }
 
-    pub fn memory_size(&self) -> usize {
-        self.bus.size()
-    }
-
     fn get_extra_cyles(&self, address_mode: AddressMode, bytes: [u8; 2]) -> u8 {
         match address_mode {
             AddressMode::AbsoluteX => {

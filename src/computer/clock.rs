@@ -2,7 +2,6 @@ use std::time::{Duration, Instant};
 use std::thread::sleep;
 use std::fmt::{Debug, Display};
 
-use log::debug;
 
 use super::DEFAULT_CLOCK_SPEED;
 
