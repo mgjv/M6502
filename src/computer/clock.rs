@@ -108,14 +108,14 @@ mod tests {
     use test_log::test;
     use log::debug;
 
-    fn test_clock_speed(mut clock: Clock, ticks: TickCount, low_millis: u64, high_millis: u64) -> Result<(), String> {
+    fn test_clock_speed(mut clock: Clock, ticks: TickCount, low_micros: u64, high_micros: u64) -> Result<(), String> {
         let start = Instant::now();
 
         clock.tick(ticks);
 
         let duration = start.elapsed();
-        let reference_low = Duration::from_millis(low_millis);
-        let reference_high = Duration::from_millis(high_millis);
+        let reference_low = Duration::from_micros(low_micros);
+        let reference_high = Duration::from_micros(high_micros);
 
         debug!("Duration: {:?}, Reference: {:?}-{:?}", duration, reference_low, reference_high);
         if duration > reference_high {
@@ -132,19 +132,19 @@ mod tests {
         // TODO This is a flaky test. It depends on what else your computer is doing
         // at the moment. Not sure how to fix.
         let clock = NormalClock::new(1_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 50, 45, 60) {
+        if let Err(e) = test_clock_speed(Clock::Normal(clock), 5, 4500, 6500) {
             panic!("{}", e);
         }
         let clock = NormalClock::new(10_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 500, 45, 60) {
+        if let Err(e) = test_clock_speed(Clock::Normal(clock), 50, 4500, 6500) {
             panic!("{}", e);
         }
         let clock = NormalClock::new(100_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 5_000, 45, 60) {
+        if let Err(e) = test_clock_speed(Clock::Normal(clock), 500, 4500, 6500) {
             panic!("{}", e);
         }
         let clock = NormalClock::new(1_000_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 50_000, 45, 60) {
+        if let Err(e) = test_clock_speed(Clock::Normal(clock), 5_000, 4500, 6500) {
             panic!("{}", e);
         }
     }
