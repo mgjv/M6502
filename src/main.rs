@@ -30,7 +30,7 @@ fn main() {
     });
     println!("Map: {}", map.display());
 
-    run_computer(&cli.rom_file.as_path(), cli.program_file.as_path());
+    run_computer(cli.rom_file.as_path(), cli.program_file.as_path());
 
 }
 

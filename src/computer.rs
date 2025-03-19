@@ -89,6 +89,7 @@ pub struct Computer {
 }
 
 impl Computer {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> ComputerBuilder {
         ComputerBuilder::new()
     }

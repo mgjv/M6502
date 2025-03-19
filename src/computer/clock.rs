@@ -82,7 +82,7 @@ impl ClockTrait for NormalClock {
     fn tick(&mut self, tick_count: TickCount) {
         let now = Instant::now();
         self.ticks_since_reference += tick_count as u32;
-        let next_tick = self.reference + self.interval.saturating_mul(self.ticks_since_reference as u32);
+        let next_tick = self.reference + self.interval.saturating_mul(self.ticks_since_reference);
         if now < next_tick {
             sleep(next_tick - now);
         }
@@ -129,21 +129,23 @@ mod tests {
     #[test]
     fn test_normal_clock() {
         // Test that normal clock ticks at the right speed
+        // TODO This is a flaky test. It depends on what else your computer is doing
+        // at the moment. Not sure how to fix.
         let clock = NormalClock::new(1_000);
         if let Err(e) = test_clock_speed(Clock::Normal(clock), 50, 45, 60) {
-            assert!(false, "{}", e);
+            panic!("{}", e);
         }
         let clock = NormalClock::new(10_000);
         if let Err(e) = test_clock_speed(Clock::Normal(clock), 500, 45, 60) {
-            assert!(false, "{}", e);
+            panic!("{}", e);
         }
         let clock = NormalClock::new(100_000);
         if let Err(e) = test_clock_speed(Clock::Normal(clock), 5_000, 45, 60) {
-            assert!(false, "{}", e);
+            panic!("{}", e);
         }
         let clock = NormalClock::new(1_000_000);
         if let Err(e) = test_clock_speed(Clock::Normal(clock), 50_000, 45, 60) {
-            assert!(false, "{}", e);
+            panic!("{}", e);
         }
     }
 
@@ -152,10 +154,10 @@ mod tests {
         // Test that speedy clock just runs as fast as it possibly can
         let clock = SpeedyClock::default();
         if let Err(e) = test_clock_speed(Clock::Speedy(clock.clone()), 1_000, 0, 1) {
-            assert!(false, "{}", e);
+            panic!("{}", e);
         }
         if let Err(e) = test_clock_speed(Clock::Speedy(clock.clone()), TickCount::MAX, 0, 1) {
-            assert!(false, "{}", e);
+            panic!("{}", e);
         }
     }
 }

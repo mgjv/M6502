@@ -73,7 +73,7 @@ impl Bus {
             return Err(format!("Start address 0x{:04x} is greater than end address 0x{:04x}", start, end));
         }
         if start % 0x100 != 0 || end % 0x100 != 0xff {
-            return Err(format!("Start and end must be aligned with page boundary"));
+            return Err("Start and end must be aligned with page boundary".to_string());
         }
 
         let segment = MappedAddressable {
@@ -417,19 +417,24 @@ mod tests {
 
     #[test]
     fn test_rom() -> Result<(), String> {
-        let mut test_rom1 = vec![0x00; 0x200];
-        for i in 0..0x200 {
-            test_rom1[i] = (i % 0x100) as u8;
-        }
-        let mut test_rom2 = test_rom1.clone();
-        test_rom2.reverse();
+        // Create some fake rom images
+        let test_rom1: Vec<u8> = (0..0x200).map(|it| (it % 0x100) as u8).collect();
+        let test_rom2: Vec<u8> = test_rom1.iter().rev().copied().collect();
 
+        // Load one at the start, one in the middle somewhere and one at the end
         let bus = Bus::new()
             .add_rom(&test_rom1, 0x0000)?
-            .add_rom(&test_rom2, 0xfe00)?;
+            .add_rom(&test_rom1, 0x1000)?
+            .add_rom_at_end(&test_rom2)?;
 
         assert_eq!(0x00, bus.read_byte(0x0000));
         assert_eq!(0x01, bus.read_byte(0x0001));
+        assert_eq!(0xff, bus.read_byte(0x01ff));
+
+        assert_eq!(0x00, bus.read_byte(0x1000));
+        assert_eq!(0x01, bus.read_byte(0x1001));
+        assert_eq!(0xff, bus.read_byte(0x11ff));
+
         assert_eq!(0xff, bus.read_byte(0xfe00));
         assert_eq!(0x00, bus.read_byte(0xffff));
 
