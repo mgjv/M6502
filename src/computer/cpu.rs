@@ -49,8 +49,7 @@ impl Cpu {
 
             stack_pointer: 0xfd,
 
-            // program_counter: reset_address,
-            program_counter: 0,
+            program_counter: RESET_ADDRESS,
             status: Status::default(),
         }
     }

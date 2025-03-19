@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use std::thread::sleep;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use log::debug;
 
@@ -38,6 +38,15 @@ impl ClockTrait for Clock {
     }
 }
 
+impl Display for Clock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Normal(c) => Display::fmt(c, f),
+            Self::Speedy(_) => write!(f, "Speedy")
+        }
+    }
+}
+
 /*
  * A normal clock that runs at a fixed speed
  *
@@ -63,7 +72,6 @@ impl Default for NormalClock {
 impl NormalClock {
     /* Clock speed in Hz, so 1 MHz is 1_000_000 */
     pub fn new(clock_speed: u32) -> Self {
-        debug!("Clock speed: {} Hz, interval {:?} us", clock_speed, Duration::from_nanos(1_000_000_000/clock_speed as u64).as_micros());
         Self {
             speed: clock_speed,
             interval: Duration::from_nanos(1_000_000_000/clock_speed as u64),
@@ -91,6 +99,12 @@ impl ClockTrait for NormalClock {
             self.reference = Instant::now();
             self.ticks_since_reference = 0;
         }
+    }
+}
+
+impl Display for NormalClock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Clock speed: {} Hz, interval {:?} us", self.speed, self.interval.as_micros())
     }
 }
 

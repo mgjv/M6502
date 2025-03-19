@@ -5,6 +5,7 @@ pub mod clock;
 use cpu::Cpu;
 use bus::{Bus, Ram};
 use clock::{Clock, ClockTrait, TickCount};
+use log::info;
 
 use std::{fmt::Write, path::PathBuf};
 
@@ -71,11 +72,17 @@ impl ComputerBuilder {
         // Build the Cpu
         let cpu = Cpu::new(bus);
 
+        info!("Adding cpu: {}", "6502");
+        info!("Adding clock: {}", self.clock);
+
         // and build the computer
-        let computer = Computer {
+        let mut computer = Computer {
             cpu,
             clock: self.clock,
         };
+
+        // TODO This is needed to run the ROM initialisation. Can be removed in the future
+        computer.run();
 
         Ok(computer)
     }
@@ -190,7 +197,7 @@ mod tests {
 
     fn create_test_computer() -> Computer {
         MAKE_ASSEMBLY.call_once(build_assembly);
-        let rom_file_name = Path::new("assembly/basic.rom");
+        let rom_file_name = Path::new("assembly/standard.rom");
         let rom = std::fs::read(rom_file_name).unwrap_or_else(|_| panic!(
             "Was not able to load rom from {}", rom_file_name.display()
         ));

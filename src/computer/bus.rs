@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::fmt;
 
-use log::{trace, debug, error};
+use log::{debug, error, info, trace};
 
 // This function works in this order, because it's the order in which
 // bytes are read from memory (i.e. little endian)
@@ -49,6 +49,7 @@ impl Bus {
     // TODO addPartialRam?
     // TODO proper error when size goes past end of memeoiry range
     pub fn add_ram(self, ram: Ram, start: u16) -> Result<Self, String> {
+        info!("Adding RAM of size {:x} at 0x{:04x}", ram.size(), start);
         let end = start + (ram.size() - 1) as u16;
         self.add_addressable(ram, start, end)
     }
@@ -56,7 +57,7 @@ impl Bus {
     // TODO addPartialRom?
     // TODO proper error when size goes past end of memeoiry range
     pub fn add_rom(self, rom_data: &[u8], start: u16) -> Result<Self, String> {
-        debug!("Adding ROM of size {:x} at 0x{:04x}", rom_data.len(), start);
+        info!("Adding ROM of size {:x} at 0x{:04x}", rom_data.len(), start);
         let end = start +(rom_data.len() - 1) as u16;
         let rom = Ram::from(rom_data);
         self.add_addressable(rom, start, end)
