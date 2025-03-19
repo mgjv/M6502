@@ -63,7 +63,6 @@ impl Cpu {
         self.bus.write_bytes(address, program);
         self.program_counter = address;
         debug!("Setting program counter to {:04x}", self.program_counter);
-
     }
 
     /* Run for one clock cycle */
@@ -91,7 +90,6 @@ impl Cpu {
             },
             // Any other valid instruction, we process
             Some((instruction, address_mode, cycles)) => {
-
                 // Fetch given arguments
                 let operand_size = address_mode.operand_size();
                 let operand_bytes = self.bus.read_two_bytes(self.program_counter + 1);
@@ -120,7 +118,7 @@ impl Cpu {
                 }
 
                 // return the number of cycles/ticks consumed
-                Some(cycles)
+                Some(cycles as TickCount)
             },
             // Hmm, this is not  valid instruction. Wonder what happened
             None => {
@@ -418,8 +416,6 @@ impl Cpu {
                     _ => illegal_opcode(instruction, operand),
                 }
             },
-
-
             Instruction::INX => {
                 self.set_x_index(self.x_index.wrapping_add(1))
             },
@@ -705,7 +701,6 @@ impl Cpu {
         self.stack_pointer = self.stack_pointer.wrapping_add(1);
         let address = lo_hi_to_address(self.stack_pointer, 0x01);
         self.bus.read_byte(address)
-
     }
 
     #[cfg(test)]

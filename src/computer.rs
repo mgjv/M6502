@@ -10,17 +10,25 @@ use std::{fmt::Write, path::PathBuf};
 
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
 
-#[derive(Default)]
 pub struct ComputerBuilder {
     clock: Clock,
-    bus: Option<Bus>,
-    cpu: Option<Cpu>,
-    rom_file: Option<PathBuf>,
-    memory: Option<Ram>,
+    rom: Vec<u8>,
+    memory_size: usize,
 }
 
+impl Default for ComputerBuilder {
+    fn default() -> Self {
+        Self {
+            clock: Clock::default(),
+            rom: Vec::new(),
+            memory_size: 0x10000,
+        }
+    }
+}
+
+#[allow(dead_code)]
 impl ComputerBuilder {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             ..Default::default()
         }
@@ -31,15 +39,45 @@ impl ComputerBuilder {
         self
     }
 
-    pub fn build(self) -> Computer {
-        let mut computer = Computer {
-            cpu: self.cpu.unwrap(),
+    pub fn with_rom(mut self, rom: Vec<u8>) -> Self {
+        self.rom = rom;
+        self
+    }
+
+    pub fn with_rom_from_file(mut self, file_name: PathBuf) -> Result<Self, std::io::Error> {
+        self.rom = std::fs::read(file_name)?;
+        Ok(self)
+    }
+
+    pub fn with_memory_size(mut self, memory_size: usize) -> Self {
+        self.memory_size = memory_size;
+        self
+    }
+
+    pub fn build(self) -> Result<Computer, String> {
+        // Do some sanity checks
+        if self.rom.len() < 0x100 {
+            return Err("ROM is too small or not set".to_string());
+        }
+
+        // Create memory
+        let memory = Ram::new(self.memory_size);
+
+        // Build the bus
+        let bus = Bus::new()
+            .add_ram(memory, 0x0)?
+            .add_rom_at_end(&self.rom)?;
+
+        // Build the Cpu
+        let cpu = Cpu::new(bus);
+
+        // and build the computer
+        let computer = Computer {
+            cpu,
             clock: self.clock,
         };
 
-        //computer.load_rom_file(&self.rom_file);
-
-        computer
+        Ok(computer)
     }
 }
 
@@ -50,32 +88,9 @@ pub struct Computer {
     clock: Clock,
 }
 
-// TODO Fix clock type
 impl Computer {
-    pub fn new(rom_data: &[u8]) -> Result<Self, String> {
-
-        let bus = Bus::new()
-            .add_ram(Ram::default(), 0x0)?
-            .add_rom_at_end(rom_data)?;
-        let clock = Clock::default();
-
-        let cpu = Cpu::new(bus);
-
-        let mut new_computer = Self {
-            cpu,
-            clock,
-            //bus: Rc::new(bus::UnconnectedBus{}),
-        };
-
-        // Run the computer, until interrupt
-        new_computer.run();
-
-        Ok(new_computer)
-    }
-
-    pub fn with_clock(mut self, clock: Clock) -> Self {
-        self.clock = clock;
-        self
+    pub fn new() -> ComputerBuilder {
+        ComputerBuilder::new()
     }
 }
 
@@ -103,19 +118,19 @@ impl Computer {
 
     #[allow(unused_must_use)]
     pub fn show_state(&self) -> String {
-        let mut b = String::new();
+        let mut buffer = String::new();
 
         // Let's show the program, memory
-        writeln!(b, "Registers:\tStatus:");
-        self.cpu.show_registers(&mut b);
-        writeln!(b, "Program memory (PC location in red):");
-        self.cpu.show_program_memory(&mut b);
-        writeln!(b, "Reset memory:");
-        self.cpu.show_reset_memory(&mut b);
-        writeln!(b, "Stack:");
-        self.cpu.show_stack(&mut b);
+        writeln!(buffer, "Registers:\tStatus:");
+        self.cpu.show_registers(&mut buffer);
+        writeln!(buffer, "Program memory (PC location in red):");
+        self.cpu.show_program_memory(&mut buffer);
+        writeln!(buffer, "Reset memory:");
+        self.cpu.show_reset_memory(&mut buffer);
+        writeln!(buffer, "Stack:");
+        self.cpu.show_stack(&mut buffer);
 
-        b
+        buffer
     }
 }
 
@@ -178,8 +193,11 @@ mod tests {
         let rom = std::fs::read(rom_file_name).unwrap_or_else(|_| panic!(
             "Was not able to load rom from {}", rom_file_name.display()
         ));
-        Computer::new(&rom).unwrap()
-            .with_clock(Clock::Speedy(SpeedyClock {}))
+        Computer::new()
+            .with_rom(rom)
+            .with_clock(Clock::Speedy(SpeedyClock::default()))
+            .build()
+            .unwrap_or_else(|_| panic!("Was not able to create computer"))
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {

@@ -6,7 +6,6 @@ use log::{trace, debug, error};
 // This function works in this order, because it's the order in which
 // bytes are read from memory (i.e. little endian)
 pub fn lo_hi_to_address(lo: u8, hi: u8) -> u16 {
-    //u16::from(lo) + (u16::from(hi) << 8)
     u16::from_le_bytes([lo, hi])
 }
 pub fn bytes_to_address(bytes: &[u8]) -> u16 {
@@ -273,9 +272,7 @@ impl Addressable for UnconnectedBus {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-
     use test_log::test;
 
     #[test]
