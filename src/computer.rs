@@ -120,7 +120,7 @@ impl Computer {
 
     // Formatting/Display functions
 
-    #[allow(unused_must_use)]
+    #[allow(dead_code, unused_must_use)]
     pub fn show_state(&self) -> String {
         let mut buffer = String::new();
 
