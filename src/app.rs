@@ -1,4 +1,4 @@
-use crate::computer::Computer;
+use crate::computer::{cpu::inspect::CpuState, Computer};
 
 pub struct App<'a> {
     // Some display stuff
@@ -16,5 +16,9 @@ impl<'a> App<'a> {
             title: "CMOS 6502 emulator".to_string(),
             version: "0.0.1".to_string(),
         }
+    }
+
+    pub fn get_cpu_state(&self) -> CpuState {
+        self.computer.cpu_inspector().get_state()
     }
 }

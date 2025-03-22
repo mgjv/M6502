@@ -5,7 +5,6 @@ mod tui;
 use app::App;
 use computer::Computer;
 
-
 use std::path::{Path, PathBuf};
 
 use clap::Parser;

@@ -1,7 +1,8 @@
-mod inspect;
+pub mod inspect;
+pub mod status;
 mod instruction;
+
 use instruction::*;
-mod status;
 use status::*;
 
 use log::{debug, error};

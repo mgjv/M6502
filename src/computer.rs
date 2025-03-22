@@ -1,6 +1,8 @@
-mod cpu;
-mod bus;
+pub mod cpu;
 pub mod clock;
+pub mod bus;
+mod inspect;
+
 
 use cpu::Cpu;
 use bus::{Bus, Ram};

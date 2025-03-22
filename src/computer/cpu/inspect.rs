@@ -1,5 +1,38 @@
 use super::*;
 
+pub struct CpuState {
+    pub accumulator: u8,
+    pub x_index: u8,
+    pub y_index: u8,
+    pub status: Status,
+
+    pub program_counter: u16,
+    pub stack_pointer: u8,
+}
+
+pub struct CpuInspector<'a> {
+    cpu: &'a Cpu,
+}
+
+impl<'a> CpuInspector<'a> {
+    pub fn new(cpu: &'a Cpu) -> Self {
+        Self {
+            cpu: cpu,
+        }
+    }
+
+    pub fn get_state(&self) -> CpuState {
+        CpuState {
+            accumulator: self.cpu.accumulator,
+            x_index: self.cpu.x_index,
+            y_index: self.cpu.y_index,
+            stack_pointer: self.cpu.stack_pointer,
+            program_counter: self.cpu.program_counter,
+            status: self.cpu.status.clone(),
+        }
+    }
+}
+
 // Formatting/Display functions for the CPU type
 impl Cpu {
 
