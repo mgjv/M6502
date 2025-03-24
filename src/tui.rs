@@ -4,9 +4,9 @@ use crate::App;
 use ratatui::buffer::Buffer;
 use ratatui::Frame;
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::layout::{Constraint, Flex, Layout, Rect};
-use ratatui::text::Line;
-use ratatui::widgets::{Block, Widget};
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Padding, Widget};
 
 pub fn draw_ui(frame: &mut Frame, app: &App) {
 
@@ -34,71 +34,121 @@ pub fn draw_ui(frame: &mut Frame, app: &App) {
     frame.render_widget(bottom, frame_chunks[2]);
 
     let centre_chunks = Layout::horizontal([
-            Constraint::Length(19), // left bar
+            Constraint::Length(20), // left bar
             Constraint::Min(1), // central area
         ])
         .split(frame_chunks[1]);
 
-    let left = Block::bordered().title(" Cpu ");
+    let left = Block::bordered()
+        .padding(Padding::uniform(1))
+        .title(" Cpu ");
     let left_area = left.inner(centre_chunks[0]);
 
     frame.render_widget(left, centre_chunks[0]);
 
     let left_chunks = Layout::vertical([
-            Constraint::Length(4), // status register
-            Constraint::Length(4), // A, X and Y
-            Constraint::Length(4), // Stack Pointer, Program Counter
-            Constraint::Min(1),
+            Constraint::Length(3), // status register
+            Constraint::Length(3), // A, X and Y
+            Constraint::Length(3), // Stack Pointer, Program Counter
         ])
         .split(left_area);
 
-    let status = StatusRegister::new(app.get_cpu_state().status).centered();
+    let status = StatusRegisterWidget::new(app.cpu_state.status);
     frame.render_widget(status, left_chunks[0]);
 
     let register_chunks = Layout::horizontal([
-            Constraint::Min(1),
-            Constraint::Length(4),
-            Constraint::Length(4),
-            Constraint::Length(4),
-            Constraint::Min(1),
+            Constraint::Length(4), // Accumulator
+            Constraint::Length(4), // X index
+            Constraint::Length(4), // Y index
         ])
-        .flex(Flex::SpaceAround)
         .split(left_chunks[1]);
 
-    frame.render_widget(Register::new("A".to_string(), app.get_cpu_state().accumulator), register_chunks[1]);
-    frame.render_widget(Register::new("X".to_string(), app.get_cpu_state().x_index), register_chunks[2]);
-    frame.render_widget(Register::new("Y".to_string(), app.get_cpu_state().y_index), register_chunks[3]);
+    frame.render_widget(RegisterWidget::new("A".to_string(), app.cpu_state.accumulator), register_chunks[0]);
+    frame.render_widget(RegisterWidget::new("X".to_string(), app.cpu_state.x_index), register_chunks[1]);
+    frame.render_widget(RegisterWidget::new("Y".to_string(), app.cpu_state.y_index), register_chunks[2]);
 
     let sp_and_pc_chunks = Layout::horizontal([
-            Constraint::Min(1),
-            Constraint::Length(4),
-            Constraint::Length(6),
-            Constraint::Min(1),
+            Constraint::Length(4), // Stack Pointer
+            Constraint::Length(6), // Program Counter
         ])
-        .flex(Flex::SpaceAround)
         .split(left_chunks[2]);
 
-    frame.render_widget(Register::new("SP".to_string(), app.get_cpu_state().stack_pointer), sp_and_pc_chunks[1]);
-    frame.render_widget(Address::new("PC".to_string(), app.get_cpu_state().program_counter), sp_and_pc_chunks[2]);
+    frame.render_widget(RegisterWidget::new("SP".to_string(), app.cpu_state.stack_pointer), sp_and_pc_chunks[0]);
+    frame.render_widget(AddressWidget::new("PC".to_string(), app.cpu_state.program_counter), sp_and_pc_chunks[1]);
 
     let right = Block::new().title(" Memory ");
-
+    let memory_area = right.inner(centre_chunks[1]);
     frame.render_widget(right, centre_chunks[1]);
+
+    let program_counter = app.cpu_state.program_counter;
+    let memory_widget = MemoryWidget::new(app, program_counter - 16).set_focus(program_counter);
+    frame.render_widget(memory_widget, memory_area);
+
+}
+
+struct MemoryWidget<'a> {
+    app: &'a App<'a>,
+    start: u16,
+    focus: u16,
+}
+
+impl<'a> MemoryWidget<'a> {
+    fn new(app: &'a App, start: u16) -> Self {
+        // Adjust start to nearest lower boundary
+        Self {
+            app,
+            start,
+            focus: 0x0000,
+        }
+    }
+
+    fn set_focus(mut self, focus: u16) -> Self {
+        self.focus = focus;
+        self
+    }
+}
+impl<'a> Widget for MemoryWidget<'a> {
+    // TODO Check area boundaries
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let lines = self.app.get_memory_lines(self.start);
+
+        for (i, (address, line)) in lines.iter().enumerate() {
+            let line_area = Rect::new(area.x, area.y + i as u16, area.width, 1);
+            let style = Style::default();
+
+            let mut spans = vec![];
+            spans.push(Span::from(format!("{:04x}", address)));
+            spans.push(Span::from(": " ));
+
+            for (j, value) in line.iter().enumerate() {
+                let style = if address + j as u16 == self.focus {
+                    style.bg(Color::Red)
+                } else {
+                    style
+                };
+                spans.push(Span::from(format!("{:02x}", value)).style(style));
+                spans.push(Span::from(format!(" ")));
+            }
+
+            let line = Line::from(spans);
+            line.render(line_area, buf);
+        }
+    }
 }
 
 // TODO Address and Register are very similar
-struct Address {
+struct AddressWidget {
     name: String,
     address: u16,
 }
 
-impl Address {
+impl AddressWidget {
     fn new(name: String, address: u16) -> Self {
         Self { name, address }
     }
 }
 
-impl Widget for Address {
+impl Widget for AddressWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default();
         buf.set_string(area.x, area.y, &self.name, style);
@@ -106,18 +156,18 @@ impl Widget for Address {
     }
 }
 
-struct Register {
+struct RegisterWidget {
     name: String,
     value: u8,
 }
 
-impl Register {
+impl RegisterWidget {
     fn new(name: String, value: u8) -> Self {
         Self { name, value }
     }
 }
 
-impl Widget for Register {
+impl Widget for RegisterWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default();
         buf.set_string(area.x, area.y, &self.name, style);
@@ -126,13 +176,13 @@ impl Widget for Register {
 }
 
 #[derive(Clone, Copy)]
-struct StatusRegister {
+struct StatusRegisterWidget {
     status: cpu::status::Status,
     centered_x: bool,
     centered_y: bool,
 }
 
-impl StatusRegister {
+impl StatusRegisterWidget {
     fn new(status: cpu::status::Status) -> Self {
         Self {
             status,
@@ -158,7 +208,7 @@ impl StatusRegister {
 }
 
 #[derive(Clone, Copy)]
-struct StatusBit {
+struct StatusBitWidget {
     value: bool,
     name: char,
 }
@@ -167,7 +217,7 @@ struct StatusBit {
 // If the space is narrower than 8, it will simpluy display a
 // hex value, under a header SR. If larger than 8, it will display
 // 8 bit statuses next to each other.
-impl Widget for StatusRegister {
+impl Widget for StatusRegisterWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default().fg(Color::Yellow);
 
@@ -192,14 +242,14 @@ impl Widget for StatusRegister {
                 area.height,
             );
             let bits = [
-                StatusBit { value: self.status.negative, name: 'N' },
-                StatusBit { value: self.status.overflow, name: 'V' },
-                StatusBit { value: self.status.ignored,  name: '-' },
-                StatusBit { value: self.status.brk, name: 'B' },
-                StatusBit { value: self.status.decimal, name: 'D' },
-                StatusBit { value: self.status.irq_disable, name: 'I' },
-                StatusBit { value: self.status.zero, name: 'Z' },
-                StatusBit { value: self.status.carry, name: 'C' },
+                StatusBitWidget { value: self.status.negative, name: 'N' },
+                StatusBitWidget { value: self.status.overflow, name: 'V' },
+                StatusBitWidget { value: self.status.ignored,  name: '-' },
+                StatusBitWidget { value: self.status.brk, name: 'B' },
+                StatusBitWidget { value: self.status.decimal, name: 'D' },
+                StatusBitWidget { value: self.status.irq_disable, name: 'I' },
+                StatusBitWidget { value: self.status.zero, name: 'Z' },
+                StatusBitWidget { value: self.status.carry, name: 'C' },
             ];
             for (i, bit) in bits.iter().enumerate() {
                 let area = Rect::new(
@@ -214,7 +264,7 @@ impl Widget for StatusRegister {
     }
 }
 
-impl Widget for StatusBit {
+impl Widget for StatusBitWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let style = Style::default().fg(if self.value { Color::LightYellow } else { Color::Gray });
         buf.set_string(area.x, area.y, self.name.to_string(), style);

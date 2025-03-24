@@ -10,25 +10,16 @@ pub struct CpuState {
     pub stack_pointer: u8,
 }
 
-pub struct CpuInspector<'a> {
-    cpu: &'a Cpu,
-}
-
-impl<'a> CpuInspector<'a> {
-    pub fn new(cpu: &'a Cpu) -> Self {
-        Self {
-            cpu: cpu,
-        }
-    }
-
+impl Cpu {
+    // Get a copy of the CPU's internal state
     pub fn get_state(&self) -> CpuState {
         CpuState {
-            accumulator: self.cpu.accumulator,
-            x_index: self.cpu.x_index,
-            y_index: self.cpu.y_index,
-            stack_pointer: self.cpu.stack_pointer,
-            program_counter: self.cpu.program_counter,
-            status: self.cpu.status.clone(),
+            accumulator: self.accumulator,
+            x_index: self.x_index,
+            y_index: self.y_index,
+            stack_pointer: self.stack_pointer,
+            program_counter: self.program_counter,
+            status: self.status.clone(),
         }
     }
 }

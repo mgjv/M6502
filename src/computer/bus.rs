@@ -232,6 +232,7 @@ impl Addressable for Ram {
 
 // TODO somehow let the user determine how much and which memory to show
 // TODO can't I move this to Addressable?
+// TODO Why do I even need this?
 impl Debug for Ram {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (rows, cols) = (5, 16);

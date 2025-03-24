@@ -27,6 +27,7 @@ const IRQ_ADDRESS: u16 = 0xfffe;
 // The CPU
 #[derive(Debug)]
 pub struct Cpu {
+    // TODO Cpu should not be the owner of bus, Computer should be.
     pub bus: Bus,
 
     accumulator: u8,
@@ -106,6 +107,7 @@ impl Cpu {
                 // This is done before the instruction is executed, so that the instruction can
                 // modify the program counter if needed, without running the risk that this
                 // overwrites it again
+                // FIXME: This will panic on overflow
                 self.program_counter += 1 + operand_size;
 
                 // update the state of memory and CPU

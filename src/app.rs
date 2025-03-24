@@ -7,6 +7,9 @@ pub struct App<'a> {
 
     // A reference to the computer we're supposed to shadow
     pub computer: &'a Computer,
+
+    // Cached data
+    pub cpu_state: CpuState,
 }
 
 impl<'a> App<'a> {
@@ -15,10 +18,16 @@ impl<'a> App<'a> {
             computer,
             title: "CMOS 6502 emulator".to_string(),
             version: "0.0.1".to_string(),
+            cpu_state: computer.get_cpu_state(),
         }
     }
 
-    pub fn get_cpu_state(&self) -> CpuState {
-        self.computer.cpu_inspector().get_state()
+    pub fn get_memory_lines(&self, address: u16) -> Vec<(u16, Vec<u8>)> {
+        let n_lines = 12;
+        let line_length = 16;
+        // start needs to be aligned with line_length, and address should be on the second line
+        // TODO guard against dropping below 0?
+        let start = address - address % line_length - line_length;
+        self.computer.get_memory_lines(start, n_lines, line_length)
     }
 }
