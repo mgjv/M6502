@@ -5,7 +5,7 @@ mod inspect;
 
 use cpu::Cpu;
 use bus::{Bus, Ram};
-use clock::{Clock, ClockTrait, TickCount};
+use clock::{Clock, TickCount};
 
 use log::info;
 use std::{fmt::Write, path::PathBuf};
@@ -107,7 +107,7 @@ impl Computer {
     pub fn run(&mut self) {
         let mut number_of_ticks: TickCount = 1;
         loop {
-            self.clock.tick(number_of_ticks);
+            self.clock.wait_for_tick(number_of_ticks);
             match self.cpu.fetch_and_execute() {
                 Some(n) => number_of_ticks = n,
                 None => break,
@@ -149,7 +149,7 @@ mod tests {
     use test_case::test_case;
     use std::sync::Once;
 
-    use clock::SpeedyClock;
+    use clock::Clock;
 
     static MAKE_ASSEMBLY: Once = Once::new();
 
@@ -198,7 +198,7 @@ mod tests {
         ));
         Computer::new()
             .with_rom(rom)
-            .with_clock(Clock::Speedy(SpeedyClock::default()))
+            .with_clock(Clock::new(clock::ClockMode::Speedy))
             .build()
             .unwrap_or_else(|_| panic!("Was not able to create computer"))
     }

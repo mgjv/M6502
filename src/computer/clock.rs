@@ -4,88 +4,76 @@ use std::fmt::{Debug, Display};
 
 use super::DEFAULT_CLOCK_SPEED;
 
+// this trait needs to be implemented by anything that is governed by a clock
+pub trait ClockedDevice: dyn_clone::DynClone {
+    fn tick(&self, debug: bool);
+}
+dyn_clone::clone_trait_object!(ClockedDevice);
+
+impl Debug for dyn ClockedDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ClockedDevice")
+    }
+}
+
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature
 pub type TickCount = u16;
 
-pub trait ClockTrait: Debug + Default {
-    fn tick(&mut self, tick_count: TickCount);
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub enum ClockMode {
+    Normal,
+    Speedy,
+    Debug,
 }
 
 // TODO I don't like this enum implementation. Would rather have a trait, but
 // haven't yet figured out how to properly do that up in Computer and Cpu, without
 // needing to genericise both of them on Clock, which is silly.
 #[derive(Debug, Clone)]
+
 #[allow(dead_code)]
-pub enum Clock {
-    Normal(NormalClock),
-    Speedy(SpeedyClock),
-}
-
-impl Default for Clock {
-    fn default() -> Self {
-        Self::Normal(NormalClock::default())
-    }
-}
-
-impl ClockTrait for Clock {
-    fn tick(&mut self, tick_count: TickCount) {
-        match self {
-            Self::Normal(c) => c.tick(tick_count),
-            Self::Speedy(c) => c.tick(tick_count),
-        }
-    }
-}
-
-impl Display for Clock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Normal(c) => Display::fmt(c, f),
-            Self::Speedy(_) => write!(f, "Speedy")
-        }
-    }
-}
-
-/*
- * A normal clock that runs at a fixed speed
- *
- * This clock needs to be able to run, so don't hold it up.
- * It might go weird in a debugging session.
- */
-// A clock that has a clock speed, and ticks accordingly
-#[derive(Debug, Clone)]
-pub struct NormalClock {
-    #[allow(dead_code)]
+pub struct Clock {
+    mode: ClockMode,
     speed: u32,
     interval: Duration,
     reference: Instant,
     ticks_since_reference: u32,
+    devices: Vec<Box<dyn ClockedDevice>>,
 }
 
-impl Default for NormalClock {
+impl Default for Clock {
     fn default() -> Self {
-        Self::new(DEFAULT_CLOCK_SPEED)
-    }
-}
-
-impl NormalClock {
-    /* Clock speed in Hz, so 1 MHz is 1_000_000 */
-    pub fn new(clock_speed: u32) -> Self {
         Self {
-            speed: clock_speed,
-            interval: Duration::from_nanos(1_000_000_000/clock_speed as u64),
+            mode: ClockMode::Normal,
+            speed: DEFAULT_CLOCK_SPEED,
+            interval: Duration::from_nanos(1_000_000_000/DEFAULT_CLOCK_SPEED as u64),
             reference: Instant::now(),
             ticks_since_reference: 0,
+            devices: vec![],
         }
     }
 }
 
-impl ClockTrait for NormalClock {
-    /*
-     * wait for the given number of ticks to have expired
-     * This requires that the amount of time elapsed outside of this
-     * function isn't consistently larger than the clock_speed's interval
-     */
-    fn tick(&mut self, tick_count: TickCount) {
+#[allow(dead_code)]
+impl Clock {
+    pub fn new(mode: ClockMode) -> Self {
+        Self {
+            mode,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_clock_speed(mut self, speed: u32) -> Self {
+        self.speed = speed;
+        self.interval = Duration::from_nanos(1_000_000_000/speed as u64);
+        self
+    }
+}
+
+impl Clock {
+
+    fn wait_for_normal_tick(&mut self, tick_count: TickCount) {
         let now = Instant::now();
         self.ticks_since_reference += tick_count as u32;
         let next_tick = self.reference + self.interval.saturating_mul(self.ticks_since_reference);
@@ -98,20 +86,33 @@ impl ClockTrait for NormalClock {
             self.ticks_since_reference = 0;
         }
     }
-}
 
-impl Display for NormalClock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Clock speed: {} Hz, interval {:?} us", self.speed, self.interval.as_micros())
+    pub fn wait_for_tick(&mut self, tick_count: TickCount) {
+        match self.mode {
+            ClockMode::Normal => self.wait_for_normal_tick(tick_count),
+            ClockMode::Debug => todo!(),
+            ClockMode::Speedy => {} // Do nothing at all
+        }
+    }
+
+    pub fn connect(&mut self, device: Box<dyn ClockedDevice>) {
+        self.devices.push(device);
+    }
+
+    pub fn run(&mut self) {
+        loop {
+            for device in self.devices.clone() {
+                device.tick(false);
+            }
+            self.wait_for_tick(1);
+        }
     }
 }
 
-// A clock that does nothing at all to slow things down
-#[derive(Debug, Default, Clone)]
-pub struct SpeedyClock {}
-
-impl ClockTrait for SpeedyClock {
-    fn tick(&mut self, _: TickCount) {}
+impl Display for Clock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Clock speed: {} Hz, interval {:?} us, mode {:?}", self.speed, self.interval.as_micros(), self.mode)
+    }
 }
 
 #[cfg(test)]
@@ -123,7 +124,7 @@ mod tests {
     fn test_clock_speed(mut clock: Clock, ticks: TickCount, low_micros: u64, high_micros: u64) -> Result<(), String> {
         let start = Instant::now();
 
-        clock.tick(ticks);
+        clock.wait_for_tick(ticks);
 
         let duration = start.elapsed();
         let reference_low = Duration::from_micros(low_micros);
@@ -143,20 +144,20 @@ mod tests {
         // Test that normal clock ticks at the right speed
         // TODO This is a flaky test. It depends on what else your computer is doing
         // at the moment. Not sure how to fix.
-        let clock = NormalClock::new(1_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 5, 4500, 6500) {
+        let clock = Clock::new(ClockMode::Normal).with_clock_speed(1_000);
+        if let Err(e) = test_clock_speed(clock, 5, 4500, 6500) {
             panic!("{}", e);
         }
-        let clock = NormalClock::new(10_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 50, 4500, 6500) {
+        let clock = Clock::new(ClockMode::Normal).with_clock_speed(10_000);
+        if let Err(e) = test_clock_speed(clock, 50, 4500, 6500) {
             panic!("{}", e);
         }
-        let clock = NormalClock::new(100_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 500, 4500, 6500) {
+        let clock = Clock::new(ClockMode::Normal).with_clock_speed(100_000);
+        if let Err(e) = test_clock_speed(clock, 500, 4500, 6500) {
             panic!("{}", e);
         }
-        let clock = NormalClock::new(1_000_000);
-        if let Err(e) = test_clock_speed(Clock::Normal(clock), 5_000, 4500, 6500) {
+        let clock = Clock::new(ClockMode::Normal).with_clock_speed(1_000_000);
+        if let Err(e) = test_clock_speed(clock, 5_000, 4500, 6500) {
             panic!("{}", e);
         }
     }
@@ -164,11 +165,11 @@ mod tests {
     #[test]
     fn test_speedy_clock() {
         // Test that speedy clock just runs as fast as it possibly can
-        let clock = SpeedyClock::default();
-        if let Err(e) = test_clock_speed(Clock::Speedy(clock.clone()), 1_000, 0, 1) {
+        let clock = Clock::new(ClockMode::Speedy);
+        if let Err(e) = test_clock_speed(clock.clone(), 1_000, 0, 1) {
             panic!("{}", e);
         }
-        if let Err(e) = test_clock_speed(Clock::Speedy(clock.clone()), TickCount::MAX, 0, 1) {
+        if let Err(e) = test_clock_speed(clock.clone(), TickCount::MAX, 0, 1) {
             panic!("{}", e);
         }
     }
