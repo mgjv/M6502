@@ -3,12 +3,11 @@ pub mod clock;
 pub mod bus;
 mod inspect;
 
-
 use cpu::Cpu;
 use bus::{Bus, Ram};
 use clock::{Clock, ClockTrait, TickCount};
-use log::info;
 
+use log::info;
 use std::{fmt::Write, path::PathBuf};
 
 const DEFAULT_CLOCK_SPEED: u32 = 1_000_000; // 1 MHz
@@ -190,8 +189,7 @@ mod tests {
         computer.run();
     }
 
-    // HELPERS
-
+    // Helpers for test functions
     fn create_test_computer() -> Computer {
         MAKE_ASSEMBLY.call_once(build_assembly);
         let rom_file_name = Path::new("assembly/standard.rom");

@@ -107,7 +107,8 @@ impl<'a> MemoryWidget<'a> {
         self
     }
 }
-impl<'a> Widget for MemoryWidget<'a> {
+
+impl Widget for MemoryWidget<'_> {
     // TODO Check area boundaries
     fn render(self, area: Rect, buf: &mut Buffer) {
         let lines = self.app.get_memory_lines(self.start);
@@ -117,17 +118,20 @@ impl<'a> Widget for MemoryWidget<'a> {
             let style = Style::default();
 
             let mut spans = vec![];
-            spans.push(Span::from(format!("{:04x}", address)));
+            spans.push(Span::from(format!("{address:04x}")));
             spans.push(Span::from(": " ));
 
             for (j, value) in line.iter().enumerate() {
+                // TODO We probably should use cpu::instruction::decode_instruction()
+                // and cpu::instruction::AddressMode::get_operand_size()
+                // to determine how many bytes to colour, assuming this is an instruction
                 let style = if address + j as u16 == self.focus {
                     style.bg(Color::Red)
                 } else {
                     style
                 };
-                spans.push(Span::from(format!("{:02x}", value)).style(style));
-                spans.push(Span::from(format!(" ")));
+                spans.push(Span::from(format!("{value:02x}")).style(style));
+                spans.push(Span::from(" ".to_string()));
             }
 
             let line = Line::from(spans);

@@ -28,7 +28,6 @@ pub struct Bus {
     segments: Vec<MappedAddressable>,
 }
 
-
 /*
  * Bus
  *

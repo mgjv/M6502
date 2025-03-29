@@ -1,6 +1,5 @@
-use crate::computer::bus::Addressable;
-
 use super::*;
+use super::bus::Addressable;
 use super::cpu::inspect::CpuState;
 
 impl Computer {

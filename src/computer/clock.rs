@@ -2,7 +2,6 @@ use std::time::{Duration, Instant};
 use std::thread::sleep;
 use std::fmt::{Debug, Display};
 
-
 use super::DEFAULT_CLOCK_SPEED;
 
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature

@@ -19,7 +19,7 @@ impl Cpu {
             y_index: self.y_index,
             stack_pointer: self.stack_pointer,
             program_counter: self.program_counter,
-            status: self.status.clone(),
+            status: self.status,
         }
     }
 }

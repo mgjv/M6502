@@ -13,7 +13,6 @@ use std::fmt;
 use super::clock::TickCount;
 use super::bus::*;
 
-
 // Standard memory locations to fetch addresses from
 const NMI_ADDRESS: u16 = 0xfffa;
 const RESET_ADDRESS: u16 = 0xfffc;
@@ -42,7 +41,6 @@ pub struct Cpu {
 
 impl Cpu {
     pub fn new(bus: Bus) -> Self {
-
         Self {
             bus,
             accumulator: 0,
@@ -66,7 +64,7 @@ impl Cpu {
         debug!("Setting program counter to {:04x}", self.program_counter);
     }
 
-    /* Run for one clock cycle */
+    // Run for one clock cycle
     pub fn fetch_and_execute(&mut self) -> Option<TickCount> {
         // Read a byte
         let opcode = self.bus.read_byte(self.program_counter);
@@ -158,7 +156,6 @@ impl Cpu {
 
                 1 + self.crosses_page_boundary(address) as u8
             }
-
             _ => 0,
         }
     }
@@ -230,7 +227,6 @@ impl Cpu {
     }
 
     fn execute_instruction(&mut self, instruction: Instruction, operand: Operand) {
-
         match instruction {
             Instruction::ADC => {
                 match operand {
