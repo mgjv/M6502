@@ -10,6 +10,9 @@ pub struct App<'a> {
 
     // Cached data
     pub cpu_state: CpuState,
+
+    // Whether the app should be closed
+    pub should_quit: bool,
 }
 
 impl<'a> App<'a> {
@@ -19,6 +22,7 @@ impl<'a> App<'a> {
             title: "CMOS 6502 emulator".to_string(),
             version: "0.0.1".to_string(),
             cpu_state: computer.get_cpu_state(),
+            should_quit: false,
         }
     }
 
