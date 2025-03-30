@@ -4,18 +4,6 @@ use std::fmt::{Debug, Display};
 
 use super::DEFAULT_CLOCK_SPEED;
 
-// this trait needs to be implemented by anything that is governed by a clock
-pub trait ClockedDevice: dyn_clone::DynClone {
-    fn tick(&self, debug: bool);
-}
-dyn_clone::clone_trait_object!(ClockedDevice);
-
-impl Debug for dyn ClockedDevice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ClockedDevice")
-    }
-}
-
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature
 pub type TickCount = u16;
 
@@ -39,7 +27,6 @@ pub struct Clock {
     interval: Duration,
     reference: Instant,
     ticks_since_reference: u32,
-    devices: Vec<Box<dyn ClockedDevice>>,
 }
 
 impl Default for Clock {
@@ -50,7 +37,6 @@ impl Default for Clock {
             interval: Duration::from_nanos(1_000_000_000/DEFAULT_CLOCK_SPEED as u64),
             reference: Instant::now(),
             ticks_since_reference: 0,
-            devices: vec![],
         }
     }
 }
@@ -92,19 +78,6 @@ impl Clock {
             ClockMode::Normal => self.wait_for_normal_tick(tick_count),
             ClockMode::Debug => todo!(),
             ClockMode::Speedy => {} // Do nothing at all
-        }
-    }
-
-    pub fn connect(&mut self, device: Box<dyn ClockedDevice>) {
-        self.devices.push(device);
-    }
-
-    pub fn run(&mut self) {
-        loop {
-            for device in self.devices.clone() {
-                device.tick(false);
-            }
-            self.wait_for_tick(1);
         }
     }
 }
