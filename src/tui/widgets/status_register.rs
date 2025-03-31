@@ -43,7 +43,7 @@ struct StatusBitWidget {
     name: char,
 }
 
-// his widget displays the value of a status register.
+// This widget displays the value of a status register.
 // If the space is narrower than 8, it will simpluy display a
 // hex value, under a header SR. If larger than 8, it will display
 // 8 bit statuses next to each other.

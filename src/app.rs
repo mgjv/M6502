@@ -1,14 +1,16 @@
 use crate::computer::{cpu::inspect::CpuState, Computer};
 
+// App contains the model functionality for any UI to display
+// the state of a computer
 pub struct App<'a> {
     // Some display stuff
     pub title: String,
     pub version: String,
 
-    // A reference to the computer we're supposed to shadow
-    pub computer: &'a Computer,
+    // A private reference to the computer we're shadowing
+    computer: &'a Computer,
 
-    // Cached data
+    // The current state of the CPU. Refresh with self.update()
     pub cpu_state: CpuState,
 
     // Whether the app should be closed
@@ -26,6 +28,12 @@ impl<'a> App<'a> {
         }
     }
 
+    // Update the state from the computer
+    pub fn update(&mut self) {
+        self.cpu_state = self.computer.get_cpu_state();
+    }
+
+    // Get memory contents from the computer's bus.
     pub fn get_memory_lines(&self, address: u16) -> Vec<(u16, Vec<u8>)> {
         let n_lines = 12;
         let line_length = 16;

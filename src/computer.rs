@@ -169,20 +169,24 @@ mod tests {
     #[test_case("stack"; "stack operation")]
     #[test_case("increment"; "increment and decrement")]
     #[test_case("logical"; "logical instructions")]
-    #[test_case("bitshift"; "bit shift insgtructions")]
+    #[test_case("bitshift"; "bit shift instructions")]
     #[test_case("add_with_carry"; "add with carry")]
     #[test_case("comparison"; "comparison instructions")]
     #[test_case("other"; "other instructions")]
     fn assembly(test_name: &str) {
+        // Set up
         let _ = env_logger::builder()
             .is_test(true)
             .format_timestamp(None)
             .format_target(false)
             .try_init();
+        MAKE_ASSEMBLY.call_once(build_assembly);
+
+        // Do the work
         let mut computer = create_test_computer();
         let file_name = format!("assembly/{}.test", test_name);
         let program = read_program(file_name.as_str());
-        // NOTE: See assembly/test.cfg
+        // NOTE: See assembly/test.cfg for this value
         let start_address = 0x1000;
         debug!("Loading Assembly test {}", file_name);
         computer.load_program(start_address, &program);
@@ -191,7 +195,6 @@ mod tests {
 
     // Helpers for test functions
     fn create_test_computer() -> Computer {
-        MAKE_ASSEMBLY.call_once(build_assembly);
         let rom_file_name = Path::new("assembly/standard.rom");
         let rom = std::fs::read(rom_file_name).unwrap_or_else(|_| panic!(
             "Was not able to load rom from {}", rom_file_name.display()
@@ -204,7 +207,6 @@ mod tests {
     }
 
     fn read_program(file_name: &str) -> Vec<u8> {
-        MAKE_ASSEMBLY.call_once(build_assembly);
         let program_file_name = Path::new(file_name);
         std::fs::read(program_file_name).unwrap_or_else(|_| panic!(
             "Was not able to load program from {}", program_file_name.display()

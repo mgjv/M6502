@@ -1,5 +1,5 @@
 use std::time::{Duration, Instant};
-use std::thread::sleep;
+use std::thread;
 use std::fmt::{Debug, Display};
 
 use super::DEFAULT_CLOCK_SPEED;
@@ -7,20 +7,13 @@ use super::DEFAULT_CLOCK_SPEED;
 // TODO make this into a type that limits its range, maybe ranged_integer crate once it's mature
 pub type TickCount = u16;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum ClockMode {
     Normal,
     Speedy,
-    Debug,
 }
 
-// TODO I don't like this enum implementation. Would rather have a trait, but
-// haven't yet figured out how to properly do that up in Computer and Cpu, without
-// needing to genericise both of them on Clock, which is silly.
 #[derive(Debug, Clone)]
-
-#[allow(dead_code)]
 pub struct Clock {
     mode: ClockMode,
     speed: u32,
@@ -41,7 +34,6 @@ impl Default for Clock {
     }
 }
 
-#[allow(dead_code)]
 impl Clock {
     pub fn new(mode: ClockMode) -> Self {
         Self {
@@ -60,14 +52,20 @@ impl Clock {
 impl Clock {
 
     fn wait_for_normal_tick(&mut self, tick_count: TickCount) {
+
         let now = Instant::now();
         self.ticks_since_reference += tick_count as u32;
         let next_tick = self.reference + self.interval.saturating_mul(self.ticks_since_reference);
+
+        // If we're within a tick, sleep
         if now < next_tick {
-            sleep(next_tick - now);
+            thread::sleep(next_tick - now);
         }
-        // Just before we can possibly overflow ticks_since_reference, reset
-        if self.ticks_since_reference >= u32::MAX - TickCount::MIN as u32 - 1 {
+
+        // If we missed the tick (delay, debug, stopped computer)
+        // or just before we can possibly overflow ticks_since_reference, reset
+        if now >= next_tick ||
+                (self.ticks_since_reference >= u32::MAX - TickCount::MAX as u32 - 1) {
             self.reference = Instant::now();
             self.ticks_since_reference = 0;
         }
@@ -76,7 +74,6 @@ impl Clock {
     pub fn wait_for_tick(&mut self, tick_count: TickCount) {
         match self.mode {
             ClockMode::Normal => self.wait_for_normal_tick(tick_count),
-            ClockMode::Debug => todo!(),
             ClockMode::Speedy => {} // Do nothing at all
         }
     }
@@ -91,12 +88,29 @@ impl Display for Clock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_log::test;
+    use test_case::test_case;
     use log::debug;
 
-    fn test_clock_speed(mut clock: Clock, ticks: TickCount, low_micros: u64, high_micros: u64) -> Result<(), String> {
-        let start = Instant::now();
+    // TODO These tests are somewhat flaky. Not sure what to do about it.
+    #[test_case(10, 2, 200_000, 210_000; "normal clock @ 10")]
+    #[test_case(1_000, 5, 4_500, 6_500; "normal clock @ 1_000")]
+    #[test_case(1_000_000, 5_000, 4_500, 6_500; "normal clock @ 1_000_000")]
+    #[test_case(0, 1000, 0, 1; "speedy clock 1")]
+    #[test_case(0, TickCount::MAX, 0, 1; "speedy clock 2")]
+    fn test_clock_speed(clock_speed: u32, ticks: TickCount, low_micros: u64, high_micros: u64) {
+        let _ = env_logger::builder()
+            .is_test(true)
+            .format_timestamp(None)
+            .format_target(false)
+            .try_init();
 
+        let mut clock = if clock_speed > 0 {
+            Clock::new(ClockMode::Normal).with_clock_speed(clock_speed)
+        } else {
+            Clock::new(ClockMode::Speedy)
+        };
+
+        let start = Instant::now();
         clock.wait_for_tick(ticks);
 
         let duration = start.elapsed();
@@ -105,45 +119,9 @@ mod tests {
 
         debug!("Duration: {:?}, Reference: {:?}-{:?}", duration, reference_low, reference_high);
         if duration > reference_high {
-            return Err("Normal Clock ticks too fast".to_string())
+            panic!("Normal Clock@{clock_speed} ticks too fast")
         } else if duration < reference_low {
-            return Err("Normal Clock ticks too slow".to_string())
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn test_normal_clock() {
-        // Test that normal clock ticks at the right speed
-        // TODO This is a flaky test. It depends on what else your computer is doing
-        // at the moment. Not sure how to fix.
-        let clock = Clock::new(ClockMode::Normal).with_clock_speed(1_000);
-        if let Err(e) = test_clock_speed(clock, 5, 4500, 6500) {
-            panic!("{}", e);
-        }
-        let clock = Clock::new(ClockMode::Normal).with_clock_speed(10_000);
-        if let Err(e) = test_clock_speed(clock, 50, 4500, 6500) {
-            panic!("{}", e);
-        }
-        let clock = Clock::new(ClockMode::Normal).with_clock_speed(100_000);
-        if let Err(e) = test_clock_speed(clock, 500, 4500, 6500) {
-            panic!("{}", e);
-        }
-        let clock = Clock::new(ClockMode::Normal).with_clock_speed(1_000_000);
-        if let Err(e) = test_clock_speed(clock, 5_000, 4500, 6500) {
-            panic!("{}", e);
-        }
-    }
-
-    #[test]
-    fn test_speedy_clock() {
-        // Test that speedy clock just runs as fast as it possibly can
-        let clock = Clock::new(ClockMode::Speedy);
-        if let Err(e) = test_clock_speed(clock.clone(), 1_000, 0, 1) {
-            panic!("{}", e);
-        }
-        if let Err(e) = test_clock_speed(clock.clone(), TickCount::MAX, 0, 1) {
-            panic!("{}", e);
+            panic!("Normal Clock@{clock_speed} ticks too slow")
         }
     }
 }

@@ -3,6 +3,7 @@ use ratatui::style::Style;
 use ratatui::layout::Rect;
 use ratatui::buffer::Buffer;
 
+// TODO Address and Register are very similar
 pub struct RegisterWidget {
     name: String,
     value: u8,

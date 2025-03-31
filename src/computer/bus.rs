@@ -23,7 +23,7 @@ struct MappedAddressable {
     addressable: Box<dyn Addressable>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Bus {
     segments: Vec<MappedAddressable>,
 }
@@ -40,9 +40,7 @@ pub struct Bus {
  */
 impl Bus {
     pub fn new() -> Self {
-        Self {
-            segments: Vec::new(),
-        }
+        Self::default()
     }
 
     // TODO addPartialRam?

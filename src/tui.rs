@@ -1,14 +1,14 @@
 mod events;
 mod widgets;
 
-use crate::app::App;
-
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::layout::{Constraint, Layout};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Padding};
-
 use ratatui::{DefaultTerminal, Frame};
+
+use crate::app::App;
+
 use widgets::address::AddressWidget;
 use widgets::memory::MemoryWidget;
 use widgets::register::RegisterWidget;
@@ -25,6 +25,7 @@ pub fn run_app(app: App)  -> color_eyre::Result<()> {
 fn event_loop(mut terminal: DefaultTerminal, mut app: App) -> color_eyre::Result<()> {
 
     while !app.should_quit {
+        app.update();
         terminal.draw(|f| draw_ui(f, &app))?;
         events::process_events(&terminal, &mut app)?;
     }
