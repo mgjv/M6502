@@ -31,7 +31,7 @@ impl<'a> MemoryWidget<'a> {
 impl Widget for MemoryWidget<'_> {
     // TODO Check area boundaries
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let lines = self.app.get_memory_lines(self.start);
+        let lines = self.app.get_memory_lines(self.start, 12, 16);
 
         for (i, (address, line)) in lines.iter().enumerate() {
             let line_area = Rect::new(area.x, area.y + i as u16, area.width, 1);

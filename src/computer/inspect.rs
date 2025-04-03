@@ -21,4 +21,8 @@ impl Computer {
         }
         lines
     }
+
+    pub fn address_opcode_to_string(&self, address: u16) -> String {
+        self.cpu.address_opcode_to_string(address)
+    }
 }

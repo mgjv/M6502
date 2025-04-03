@@ -34,12 +34,14 @@ impl<'a> App<'a> {
     }
 
     // Get memory contents from the computer's bus.
-    pub fn get_memory_lines(&self, address: u16) -> Vec<(u16, Vec<u8>)> {
-        let n_lines = 12;
-        let line_length = 16;
+    pub fn get_memory_lines(&self, address: u16, line_count: u16, line_length: u16) -> Vec<(u16, Vec<u8>)> {
         // start needs to be aligned with line_length, and address should be on the second line
         // TODO guard against dropping below 0?
         let start = address - address % line_length - line_length;
-        self.computer.get_memory_lines(start, n_lines, line_length)
+        self.computer.get_memory_lines(start, line_count, line_length)
+    }
+
+    pub fn current_opcode_to_string(&self) -> String {
+        self.computer.address_opcode_to_string(self.cpu_state.program_counter)
     }
 }

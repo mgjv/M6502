@@ -26,6 +26,18 @@ impl Cpu {
 
 // Formatting/Display functions for the CPU type
 impl Cpu {
+    pub fn address_opcode_to_string(&self, address: u16) -> String {
+        let opcode = self.bus.read_byte(address);
+        match instruction::decode_instruction(opcode) {
+            Some((instruction, address_mode, _)) => {
+                let operand_bytes = self.bus.read_two_bytes(address + 1);
+                format!("{instruction} {}", address_mode.debug_format(operand_bytes))
+            }
+            None => {
+                format!("U{:02x}", opcode)
+            }
+        }
+    }
 
     pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {
         write!(b, " A   X   Y")?;
@@ -34,13 +46,15 @@ impl Cpu {
         writeln!(b)?;
 
         // compute registers
-        write!{b, " {:02X}  {:02X}  {:02X}",
-            self.accumulator,
-            self.x_index,
-            self.y_index}?;
+        write! {b, " {:02X}  {:02X}  {:02X}",
+        self.accumulator,
+        self.x_index,
+        self.y_index}?;
 
         // status register
-        write!(b, "\t{:1b} {:1b} {color_bright_black}{:1b} {:1b}{color_reset} {:1b} {:1b} {:1b} {:1b}",
+        write!(
+            b,
+            "\t{:1b} {:1b} {color_bright_black}{:1b} {:1b}{color_reset} {:1b} {:1b} {:1b} {:1b}",
             u8::from(self.status.negative),
             u8::from(self.status.overflow),
             u8::from(self.status.ignored),
@@ -48,13 +62,17 @@ impl Cpu {
             u8::from(self.status.decimal),
             u8::from(self.status.irq_disable),
             u8::from(self.status.zero),
-            u8::from(self.status.carry))?;
+            u8::from(self.status.carry)
+        )?;
 
         // vectors
-        write!(b, "\t\t{:04x} {:04x} {:04x}",
+        write!(
+            b,
+            "\t\t{:04x} {:04x} {:04x}",
             self.bus.read_address(NMI_ADDRESS),
             self.bus.read_address(RESET_ADDRESS),
-            self.bus.read_address(IRQ_ADDRESS))?;
+            self.bus.read_address(IRQ_ADDRESS)
+        )?;
 
         writeln!(b)?;
         Ok(())
@@ -74,27 +92,39 @@ impl Cpu {
         self.show_memory(b, stack_address)
     }
 
-    pub fn show_memory<W: fmt::Write>(&self, b: &mut W, focal_address: u16) -> Result<(), fmt::Error> {
+    pub fn show_memory<W: fmt::Write>(
+        &self,
+        b: &mut W,
+        focal_address: u16,
+    ) -> Result<(), fmt::Error> {
         let start = if focal_address > 16 {
-            ((focal_address - 16)/ 16) * 16
+            ((focal_address - 16) / 16) * 16
         } else {
-            (focal_address/ 16) * 16
+            (focal_address / 16) * 16
         };
         let end = start + 3 * 16;
 
-        for address in start .. end {
+        for address in start..end {
             if address % 16 == 0 {
                 write!(b, " {color_bright_blue}0x{:04X}{color_reset}: ", address)?;
             }
-            if address % 16 == 8 { write!(b, " ")?; }
-            if address == focal_address { write!(b, "{color_red}")?; }
+            if address % 16 == 8 {
+                write!(b, " ")?;
+            }
+            if address == focal_address {
+                write!(b, "{color_red}")?;
+            }
 
             let byte = self.bus.read_byte(address);
             write!(b, " {:02X}", byte)?;
 
-            if address == focal_address { write!(b, "{color_reset}")?; }
+            if address == focal_address {
+                write!(b, "{color_reset}")?;
+            }
 
-            if address % 16 == 15 { writeln!(b)?; }
+            if address % 16 == 15 {
+                writeln!(b)?;
+            }
         }
         Ok(())
     }
