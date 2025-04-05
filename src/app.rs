@@ -44,4 +44,17 @@ impl<'a> App<'a> {
     pub fn current_opcode_to_string(&self) -> String {
         self.computer.address_opcode_to_string(self.cpu_state.program_counter)
     }
+
+    pub fn disassemble(&self, start_address: u16, length: u16) -> Vec<(u16, String)> {
+        self.computer.disassemble(start_address, length)
+    }
+
+    pub fn get_execution_history(&self) -> Vec<(u16, String)> {
+        self.computer.get_execution_history()
+    }
+
+    pub fn get_execution_future(&self) -> Vec<(u16, String)> {
+        self.computer.disassemble(self.cpu_state.program_counter, 16)
+    }
+
 }

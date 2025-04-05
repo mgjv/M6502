@@ -7,12 +7,14 @@ use std::path::{Path, PathBuf};
 use clap::Parser;
 use color_eyre::Result;
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 struct Cli {
     #[arg(short, long, default_value = "assembly/standard.rom")]
     rom_file: PathBuf,
     #[arg(short, long)]
     program_file: Option<PathBuf>,
+    #[arg(long)]
+    start_debug: bool,
 }
 
 fn main() -> Result<()> {
@@ -24,11 +26,22 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    let computer = build_computer(cli);
+    let computer = build_computer(cli.clone());
     // TODO Start the computer in a separate thread, with the correct
     // communication stuff done
 
-    tui::run_app(App::new(&computer))?;
+    let app = App::new(&computer);
+
+    if !cli.start_debug {
+        tui::run_app(app)?;
+    } else {
+        let items: Vec<String> = app.get_execution_history().iter()
+            .map(|x| format!("{:04x}: {}", x.0, x.1)).collect();
+        println!("Execution history:");
+        for item in items {
+            println!("{}", item);
+        }
+    }
 
     // TODO shut down the computer. We should also do this when
     // there is an error.

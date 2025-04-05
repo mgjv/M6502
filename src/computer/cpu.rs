@@ -1,12 +1,14 @@
 pub mod inspect;
-pub mod status;
 mod instruction;
+pub mod status;
 
+use inspect::ExecutedInstruction;
 use instruction::*;
 use status::*;
 
 use log::{debug, error};
 use inline_colorization::*;
+use circular_buffer::CircularBuffer;
 
 use std::fmt;
 
@@ -37,10 +39,14 @@ pub struct Cpu {
     stack_pointer: u8,
     program_counter: u16,
     status: Status,
+
+    // For debugging and display
+    execution_history: CircularBuffer<16, ExecutedInstruction>,
 }
 
 impl Cpu {
     pub fn new(bus: Bus) -> Self {
+        let program_counter = bus.read_address(RESET_ADDRESS);
         Self {
             bus,
             accumulator: 0,
@@ -49,8 +55,10 @@ impl Cpu {
 
             stack_pointer: 0xfd,
 
-            program_counter: RESET_ADDRESS,
+            program_counter,
             status: Status::default(),
+
+            execution_history: CircularBuffer::new(),
         }
     }
 
@@ -73,12 +81,14 @@ impl Cpu {
             // FIXME This isn't the right implementation for BRK
             Some((Instruction::BRK, _, _)) => {
                 debug!("{:04x}:{:02x} -> BRK  -> BRK", self.program_counter, opcode);
+                self.execution_history.push_back(ExecutedInstruction::bogus(self.program_counter, Instruction::BRK));
                 self.execute_instruction(Instruction::BRK, Operand::Implied);
                 None
             },
             #[cfg(test)]
             Some((Instruction::HALT, _, _)) => {
                 debug!("{:04x}:{:02x} -> HALT", self.program_counter, opcode);
+                self.execution_history.push_back(ExecutedInstruction::bogus(self.program_counter, Instruction::HALT));
                 None
             },
             #[cfg(test)]
@@ -98,8 +108,14 @@ impl Cpu {
 
                 debug!("{:04x}:{:02x} -> {} {} -> {} {}",
                     self.program_counter, opcode,
-                    instruction, address_mode.debug_format(operand_bytes),
+                    instruction, address_mode.debug_format(&operand_bytes),
                     instruction, operand.debug_format());
+                self.execution_history.push_back(ExecutedInstruction {
+                        address: self.program_counter,
+                        instruction,
+                        address_mode,
+                        operand_bytes,
+                    });
 
                 // Advance the program counter by the correct number of bytes
                 // This is done before the instruction is executed, so that the instruction can

@@ -1,7 +1,8 @@
 mod events;
 mod widgets;
 
-use ratatui::{prelude::*, widgets::*};
+use ratatui::prelude::*;
+use ratatui::widgets::*;
 use widgets::*;
 
 use crate::app::App;
@@ -17,13 +18,21 @@ pub fn run_app(app: App) -> color_eyre::Result<()> {
 fn event_loop(mut terminal: ratatui::DefaultTerminal, mut app: App) -> color_eyre::Result<()> {
     while !app.should_quit {
         app.update();
-        terminal.draw(|f| draw_ui(f, &app))?;
+        terminal.draw(|f| draw_tui(f, &app))?;
         events::process_events(&terminal, &mut app)?;
     }
     Ok(())
 }
 
-pub fn draw_ui(frame: &mut Frame, app: &App) {
+// const NORMAL_STYLE: Style = Style::new().fg(Color::White).bg(Color::Black);
+const BLOCK_TITLE_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+const APP_TITLE_STYLE: Style = Style::new().fg(Color::Blue).bg(Color::Yellow).add_modifier(Modifier::BOLD.union(Modifier::ITALIC));
+const STATUS_BAR_STYLE: Style = Style::new().fg(Color::Black).bg(Color::White);
+const SELECTED_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Yellow);
+const BLOCK_PADDING: Padding = Padding::horizontal(1);
+const PAD_SPACE_V: u16 = BLOCK_PADDING.top + BLOCK_PADDING.bottom;
+
+pub fn draw_tui(frame: &mut Frame, app: &App) {
     let frame_chunks = Layout::vertical([
         Constraint::Length(3), // title and menu
         Constraint::Min(1),    // central area
@@ -31,7 +40,7 @@ pub fn draw_ui(frame: &mut Frame, app: &App) {
     ])
     .split(frame.area());
 
-    draw_top_bar(frame_chunks[0], frame, app);
+    draw_top_area(frame_chunks[0], frame, app);
 
     let main_chunks = Layout::horizontal([
         Constraint::Length(28), // left bar
@@ -47,19 +56,20 @@ pub fn draw_ui(frame: &mut Frame, app: &App) {
 
 fn draw_left_bar(area: Rect, frame: &mut Frame, app: &App) {
     let left_chunks = Layout::vertical([
-        Constraint::Length(5), // cpu monitor
+        Constraint::Length(5 + PAD_SPACE_V), // cpu monitor
         Constraint::Fill(1),   // rest
     ])
     .split(area);
 
     draw_cpu_monitor(left_chunks[0], frame, app);
+    draw_execution(left_chunks[1], frame, app);
 }
 
 fn draw_cpu_monitor(area: Rect, frame: &mut Frame, app: &App) {
     let left = Block::bordered()
-        //.padding(Padding::uniform(1))
+        .padding(BLOCK_PADDING)
         .title(" Cpu ")
-        .title_style(Style::new().blue().on_white().bold());
+        .title_style(BLOCK_TITLE_STYLE);
     let left_area = left.inner(area);
 
     frame.render_widget(left, area);
@@ -115,8 +125,35 @@ fn draw_cpu_monitor(area: Rect, frame: &mut Frame, app: &App) {
     frame.render_widget(status, left_chunks[2]);
 }
 
+fn draw_execution(area: Rect, frame: &mut Frame, app: &App) {
+    let right = Block::bordered()
+        .padding(BLOCK_PADDING)
+        .title(" Program assembly ")
+        .title_style(BLOCK_TITLE_STYLE);
+    let right_area = right.inner(area);
+    frame.render_widget(right, area);
+
+    let history = app.get_execution_history();
+
+    let all_items: Vec<String> = history.iter()
+        .chain(app.get_execution_future().iter())
+        .map(|x| format!("{:04x}: {}", x.0, x.1)).collect();
+
+    let mut state = ListState::default();
+    state.select(Some(history.len()));
+
+    let list = List::new(all_items)
+        .highlight_style(SELECTED_STYLE)
+        .highlight_symbol(">");
+
+    frame.render_stateful_widget(list, right_area, &mut state);
+}
+
 fn draw_memory_area(area: Rect, frame: &mut Frame, app: &App) {
-    let right = Block::bordered().title(" Memory ");
+    let right = Block::bordered()
+        .title(" Memory ")
+        .padding(Padding::uniform(1))
+        .title_style(BLOCK_TITLE_STYLE);
     let memory_area = right.inner(area);
     frame.render_widget(right, area);
 
@@ -125,12 +162,12 @@ fn draw_memory_area(area: Rect, frame: &mut Frame, app: &App) {
     frame.render_widget(memory_widget, memory_area);
 }
 
-fn draw_top_bar(area: Rect, frame: &mut Frame, app: &App) {
+fn draw_top_area(area: Rect, frame: &mut Frame, app: &App) {
     // Top: Menu area
-    let title = Line::from(format!(" {} - {} ", app.title, app.version))
-        .style(Style::default().fg(Color::Yellow))
-        .centered();
-    let top = Block::bordered().title(title);
+    let top = Block::bordered()
+        .title(format!(" {} - {} ", app.title, app.version))
+        .title_style(APP_TITLE_STYLE)
+        .title_alignment(Alignment::Center);
     frame.render_widget(top, area);
 }
 
@@ -140,7 +177,7 @@ fn draw_status_bar(area: Rect, frame: &mut Frame, _app: &App) {
         .title(Line::from(" status ").right_aligned())
         .title(Line::from(" hint ").left_aligned())
         .title(Line::from(" message ").centered())
-        .style(Style::default().add_modifier(Modifier::REVERSED));
+        .style(STATUS_BAR_STYLE);
 
     frame.render_widget(bottom, area);
 }

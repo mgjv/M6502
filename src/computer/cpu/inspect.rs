@@ -24,19 +24,98 @@ impl Cpu {
     }
 }
 
+#[derive(Debug)]
+pub struct ExecutedInstruction {
+    pub address: u16,
+    pub instruction: instruction::Instruction,
+    pub address_mode: instruction::AddressMode,
+    pub operand_bytes: [u8; 2],
+}
+
+impl ExecutedInstruction {
+    pub fn bogus(address: u16, instruction: Instruction) -> Self {
+        Self {
+            address,
+            instruction,
+            address_mode: AddressMode::Implied,
+            operand_bytes: [0, 0]
+        }
+    }
+}
+
+impl ExecutedInstruction {
+    fn as_instruction_option(&self) -> InstructionOption {
+        InstructionOption::Some(self.instruction, self.address_mode, self.operand_bytes)
+    }
+
+    fn disassemble(&self) -> (u16, String) {
+        (self.address, format!("{}", self.as_instruction_option()))
+    }
+}
+
+enum InstructionOption {
+    Some(instruction::Instruction, instruction::AddressMode, [u8; 2]),
+    None(u8),
+}
+
+impl std::fmt::Display for InstructionOption {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            InstructionOption::Some(instruction, address_mode, operand_bytes) => {
+                write!(f, "{instruction} {}", address_mode.debug_format(operand_bytes))
+            }
+            InstructionOption::None(opcode) => {
+                write!(f, "U{:02x}", opcode)
+            }
+        }
+    }
+}
+
 // Formatting/Display functions for the CPU type
 impl Cpu {
-    pub fn address_opcode_to_string(&self, address: u16) -> String {
+
+    fn get_instruction(&self, address: u16) -> InstructionOption {
         let opcode = self.bus.read_byte(address);
         match instruction::decode_instruction(opcode) {
             Some((instruction, address_mode, _)) => {
                 let operand_bytes = self.bus.read_two_bytes(address + 1);
-                format!("{instruction} {}", address_mode.debug_format(operand_bytes))
+                InstructionOption::Some(instruction, address_mode, operand_bytes)
             }
             None => {
-                format!("U{:02x}", opcode)
+                InstructionOption::None(opcode)
             }
         }
+    }
+
+    // TODO should these be in computer::inspect?`
+    fn stringify_opcode(&self, address: u16) -> String {
+        format!{"{}", self.get_instruction(address)}
+    }
+
+    pub fn address_opcode_to_string(&self, address: u16) -> String {
+        self.stringify_opcode(address)
+    }
+
+    pub fn disassemble(&self, start_address: u16, length: u16) -> Vec<(u16, String)> {
+        let mut result = Vec::new();
+        let mut i = 0;
+        while i < length {
+            let instruction = self.get_instruction(start_address + i);
+            result.push((start_address + i, format!("{instruction}")));
+            match instruction {
+                InstructionOption::Some(_, address_mode, _) => {
+                    i += 1 + address_mode.operand_size()
+                },
+                InstructionOption::None(_) => {
+                    break
+                },
+            };
+        }
+        result
+    }
+
+    pub fn get_execution_history(&self) -> Vec<(u16, String)> {
+        self.execution_history.iter().map(|x| x.disassemble()).collect()
     }
 
     pub fn show_registers<W: fmt::Write>(&self, b: &mut W) -> Result<(), fmt::Error> {

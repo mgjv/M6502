@@ -7,6 +7,10 @@ impl Computer {
         self.cpu.get_state()
     }
 
+    pub fn get_execution_history(&self) -> Vec<(u16, String)> {
+        self.cpu.get_execution_history()
+    }
+
     // Returns a vector of lines representing memory.
     // start has to be aligned with line_length
     pub fn get_memory_lines(&self, start: u16, n_lines: u16, line_length: u16) -> Vec<(u16, Vec<u8>)> {
@@ -25,4 +29,9 @@ impl Computer {
     pub fn address_opcode_to_string(&self, address: u16) -> String {
         self.cpu.address_opcode_to_string(address)
     }
+
+    pub fn disassemble(&self, start_address: u16, length: u16) -> Vec<(u16, String)> {
+        self.cpu.disassemble(start_address, length)
+    }
+
 }

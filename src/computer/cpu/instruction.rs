@@ -44,7 +44,7 @@ impl AddressMode {
         }
     }
 
-    pub fn debug_format(&self, bytes: [u8; 2]) -> String {
+    pub fn debug_format(&self, bytes: &[u8; 2]) -> String {
         match self {
             AddressMode::Accumulator => "".to_string(),
             AddressMode::Absolute => format!("${:02x}{:02x}", bytes[1], bytes[0]),
