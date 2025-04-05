@@ -1,22 +1,15 @@
 use m6502::app::App;
-use m6502::computer::Computer;
 use m6502::tui;
-
-use std::path::{Path, PathBuf};
+use m6502::binutils::*;
 
 use clap::Parser;
 use color_eyre::Result;
-
-#[derive(Parser, Clone)]
-struct Cli {
-    #[arg(short, long, default_value = "assembly/standard.rom")]
-    rom_file: PathBuf,
-    #[arg(short, long)]
-    program_file: Option<PathBuf>,
-}
+use ratatui::crossterm::event::{self, Event};
 
 fn main() -> Result<()> {
     color_eyre::install()?;
+    // TODO: We need to direct the logs somewhere useful
+    // TODO: See the tui-logger crate
     let _ = env_logger::builder()
         .format_timestamp(None)
         .format_target(true)
@@ -30,30 +23,50 @@ fn main() -> Result<()> {
 
     let app = App::new(&computer);
 
-    tui::run_app(app)?;
+    let terminal = ratatui::init();
+    let result = event_loop(terminal, app);
+    // Ensure we clean up when we exit or in case of an error
+    ratatui::restore();
 
-    // TODO shut down the computer. We should also do this when
-    // there is an error.
+    // TODO shut down the computer.
 
-    Ok(())
+
+    result
 }
 
-fn build_computer(cli: Cli) -> Computer {
-    let rom_data = read_bytes_from_file(&cli.rom_file);
-    let mut computer = Computer::new().with_rom(rom_data).build().unwrap();
+fn event_loop(mut terminal: ratatui::DefaultTerminal, mut app: App) -> color_eyre::Result<()> {
+    while !app.should_quit {
 
-    if cli.program_file.is_some() {
-        let program = read_bytes_from_file(&cli.program_file.unwrap());
-        computer.load_program(0x1000, &program);
+        // Update the internal state of the App
+        app.update();
+
+        // Draw the terminal, based on thaty state
+        terminal.draw(|f| tui::draw_tui(f, &app))?;
+
+        // Process any external events, for the next iteration
+        if let Event::Key(key) = event::read()? {
+            if key.kind != event::KeyEventKind::Release {
+                match key.code {
+                    event::KeyCode::Char('q') => {
+                        app.should_quit = true;
+                    }
+                    event::KeyCode::Left => {
+                        todo!();
+                    }
+                    event::KeyCode::Right => {
+                        todo!();
+                    }
+                    // event::KeyCode::Char('c') => app.computer.toggle_clock(),
+                    // event::KeyCode::Char('r') => app.computer.reset(),
+                    // event::KeyCode::Char('s') => app.computer.step(),
+                    // event::KeyCode::Char('p') => app.computer.toggle_pause(),
+                    _ => {}
+                }
+            }
+        }
     }
 
-    computer
-}
-
-fn read_bytes_from_file(file_name: &Path) -> Vec<u8> {
-    std::fs::read(file_name).unwrap_or_else(|_| panic!(
-        "Was not able to load bytes from {}", file_name.display()
-    ))
+    Ok(())
 }
 
 #[cfg(test)]

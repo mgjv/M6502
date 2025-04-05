@@ -1,4 +1,4 @@
+pub mod binutils;
 pub mod computer;
-
-pub mod tui;
 pub mod app;
+pub mod tui;

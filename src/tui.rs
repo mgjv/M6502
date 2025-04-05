@@ -1,4 +1,3 @@
-mod events;
 mod widgets;
 
 use ratatui::prelude::*;
@@ -6,23 +5,6 @@ use ratatui::widgets::*;
 use widgets::*;
 
 use crate::app::App;
-
-pub fn run_app(app: App) -> color_eyre::Result<()> {
-    let terminal = ratatui::init();
-    let result = event_loop(terminal, app);
-    // Ensure we clean up when we exit or in case of an error
-    ratatui::restore();
-    result
-}
-
-fn event_loop(mut terminal: ratatui::DefaultTerminal, mut app: App) -> color_eyre::Result<()> {
-    while !app.should_quit {
-        app.update();
-        terminal.draw(|f| draw_tui(f, &app))?;
-        events::process_events(&terminal, &mut app)?;
-    }
-    Ok(())
-}
 
 // const NORMAL_STYLE: Style = Style::new().fg(Color::White).bg(Color::Black);
 const BLOCK_TITLE_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);

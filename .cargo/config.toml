@@ -1,0 +1,4 @@
+[alias]
+debug = "run --bin c6502-debug"
+tui = "run --bin c6502-tui"
+gui = "run --bin c6502-gui"
