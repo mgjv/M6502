@@ -13,8 +13,6 @@ struct Cli {
     rom_file: PathBuf,
     #[arg(short, long)]
     program_file: Option<PathBuf>,
-    #[arg(long)]
-    start_debug: bool,
 }
 
 fn main() -> Result<()> {
@@ -32,16 +30,7 @@ fn main() -> Result<()> {
 
     let app = App::new(&computer);
 
-    if !cli.start_debug {
-        tui::run_app(app)?;
-    } else {
-        let items: Vec<String> = app.get_execution_history().iter()
-            .map(|x| format!("{:04x}: {}", x.0, x.1)).collect();
-        println!("Execution history:");
-        for item in items {
-            println!("{}", item);
-        }
-    }
+    tui::run_app(app)?;
 
     // TODO shut down the computer. We should also do this when
     // there is an error.
