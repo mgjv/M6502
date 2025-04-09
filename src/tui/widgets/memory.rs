@@ -4,7 +4,7 @@ use ratatui::style::{Color, Style};
 use ratatui::layout::Rect;
 use ratatui::buffer::Buffer;
 
-use crate::app::App;
+use crate::tui::app::App;
 
 pub struct MemoryWidget<'a> {
     app: &'a App<'a>,
@@ -31,7 +31,7 @@ impl<'a> MemoryWidget<'a> {
 impl Widget for MemoryWidget<'_> {
     // TODO Check area boundaries
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let lines = self.app.get_memory_lines(self.start, 12, 16);
+        let lines = self.app.proxy.get_memory_lines(self.start, 12, 16);
 
         for (i, (address, line)) in lines.iter().enumerate() {
             let line_area = Rect::new(area.x, area.y + i as u16, area.width, 1);

@@ -1,50 +1,53 @@
 mod widgets;
+pub mod app;
 
+use app::App;
 use ratatui::prelude::*;
 use ratatui::widgets::*;
 use widgets::*;
 
-use crate::app::App;
-
 // const NORMAL_STYLE: Style = Style::new().fg(Color::White).bg(Color::Black);
 const BLOCK_TITLE_STYLE: Style = Style::new().fg(Color::Yellow).add_modifier(Modifier::BOLD);
-const APP_TITLE_STYLE: Style = Style::new().fg(Color::Blue).bg(Color::Yellow).add_modifier(Modifier::BOLD.union(Modifier::ITALIC));
+const APP_TITLE_STYLE: Style = Style::new()
+    .fg(Color::Blue)
+    .bg(Color::Yellow)
+    .add_modifier(Modifier::BOLD.union(Modifier::ITALIC));
 const STATUS_BAR_STYLE: Style = Style::new().fg(Color::Black).bg(Color::White);
 const SELECTED_STYLE: Style = Style::new().fg(Color::Black).bg(Color::Yellow);
 const BLOCK_PADDING: Padding = Padding::horizontal(1);
 const PAD_SPACE_V: u16 = BLOCK_PADDING.top + BLOCK_PADDING.bottom;
 
 pub fn draw_tui(frame: &mut Frame, app: &App) {
-    let frame_chunks = Layout::vertical([
+    let [top, middle, bottom] = Layout::vertical([
         Constraint::Length(3), // title and menu
         Constraint::Min(1),    // central area
         Constraint::Length(1), // status and info bar
     ])
-    .split(frame.area());
+    .areas(frame.area());
 
-    draw_top_area(frame_chunks[0], frame, app);
+    draw_top_area(top, frame, app);
 
-    let main_chunks = Layout::horizontal([
+    let [left_middle, right_middle] = Layout::horizontal([
         Constraint::Length(28), // left bar
         Constraint::Min(1),     // central area
     ])
-    .split(frame_chunks[1]);
+    .areas(middle);
 
-    draw_left_bar(main_chunks[0], frame, app);
-    draw_memory_area(main_chunks[1], frame, app);
+    draw_left_bar(left_middle, frame, app);
+    draw_memory_area(right_middle, frame, app);
 
-    draw_status_bar(frame_chunks[2], frame, app);
+    draw_status_bar(bottom, frame, app);
 }
 
 fn draw_left_bar(area: Rect, frame: &mut Frame, app: &App) {
-    let left_chunks = Layout::vertical([
-        Constraint::Length(5 + PAD_SPACE_V), // cpu monitor
-        Constraint::Fill(1),   // rest
+    let [cpu_area, execution_area] = Layout::vertical([
+        Constraint::Length(5 + PAD_SPACE_V),
+        Constraint::Fill(1),
     ])
-    .split(area);
+    .areas(area);
 
-    draw_cpu_monitor(left_chunks[0], frame, app);
-    draw_execution(left_chunks[1], frame, app);
+    draw_cpu_monitor(cpu_area, frame, app);
+    draw_execution(execution_area, frame, app);
 }
 
 fn draw_cpu_monitor(area: Rect, frame: &mut Frame, app: &App) {
@@ -56,55 +59,55 @@ fn draw_cpu_monitor(area: Rect, frame: &mut Frame, app: &App) {
 
     frame.render_widget(left, area);
 
-    let left_chunks = Layout::vertical([
-        Constraint::Length(2), // status register
-        Constraint::Length(2), // A, X and Y
-        Constraint::Length(2), // Stack Pointer, Program Counter
+    let [program_counter_area, register_area, status_register_area] = Layout::vertical([
+        Constraint::Length(2),
+        Constraint::Length(2),
+        Constraint::Length(2),
     ])
-    .split(left_area);
+    .areas(left_area);
 
-    let sp_and_pc_chunks = Layout::horizontal([
+    let [pc_area, op_area] = Layout::horizontal([
         Constraint::Min(7), // Program Counter
         Constraint::Min(1), // Operation
     ])
-    .split(left_chunks[0]);
+    .areas(program_counter_area);
 
     frame.render_widget(
-        AddressWidget::new("PC".to_string(), app.cpu_state.program_counter),
-        sp_and_pc_chunks[0],
+        AddressWidget::new("PC".to_string(), app.proxy.cpu_state.program_counter),
+        pc_area,
     );
     frame.render_widget(
-        Text::raw(app.current_opcode_to_string()),
-        sp_and_pc_chunks[1],
+        Text::raw(app.proxy.current_opcode_to_string()),
+        op_area,
     );
 
-    let register_chunks = Layout::horizontal([
+    let [a_area, x_area, y_area, sp_area] = Layout::horizontal([
         Constraint::Min(5), // Accumulator
         Constraint::Min(5), // X index
         Constraint::Min(5), // Y index
         Constraint::Min(5), // Stack Pointer
     ])
-    .split(left_chunks[1]);
+    .areas(register_area);
 
     frame.render_widget(
-        RegisterWidget::new("A".to_string(), app.cpu_state.accumulator),
-        register_chunks[0],
+        RegisterWidget::new("A".to_string(), app.proxy.cpu_state.accumulator),
+        a_area,
     );
     frame.render_widget(
-        RegisterWidget::new("X".to_string(), app.cpu_state.x_index),
-        register_chunks[1],
+        RegisterWidget::new("X".to_string(), app.proxy.cpu_state.x_index),
+        x_area,
     );
     frame.render_widget(
-        RegisterWidget::new("Y".to_string(), app.cpu_state.y_index),
-        register_chunks[2],
+        RegisterWidget::new("Y".to_string(), app.proxy.cpu_state.y_index),
+        y_area,
     );
     frame.render_widget(
-        RegisterWidget::new("SP".to_string(), app.cpu_state.stack_pointer),
-        register_chunks[3],
+        RegisterWidget::new("SP".to_string(), app.proxy.cpu_state.stack_pointer),
+        sp_area,
     );
 
-    let status = StatusRegisterWidget::new(app.cpu_state.status);
-    frame.render_widget(status, left_chunks[2]);
+    let status = StatusRegisterWidget::new(app.proxy.cpu_state.status);
+    frame.render_widget(status, status_register_area);
 }
 
 fn draw_execution(area: Rect, frame: &mut Frame, app: &App) {
@@ -115,11 +118,13 @@ fn draw_execution(area: Rect, frame: &mut Frame, app: &App) {
     let right_area = right.inner(area);
     frame.render_widget(right, area);
 
-    let history = app.get_execution_history();
+    let history = app.proxy.get_execution_history();
 
-    let all_items: Vec<String> = history.iter()
-        .chain(app.get_execution_future().iter())
-        .map(|x| format!("{:04x}: {}", x.0, x.1)).collect();
+    let all_items: Vec<String> = history
+        .iter()
+        .chain(app.proxy.get_execution_future().iter())
+        .map(|x| format!("{:04x}: {}", x.0, x.1))
+        .collect();
 
     let mut state = ListState::default();
     state.select(Some(history.len()));
@@ -139,7 +144,7 @@ fn draw_memory_area(area: Rect, frame: &mut Frame, app: &App) {
     let memory_area = right.inner(area);
     frame.render_widget(right, area);
 
-    let program_counter = app.cpu_state.program_counter;
+    let program_counter = app.proxy.cpu_state.program_counter;
     let memory_widget = MemoryWidget::new(app, program_counter - 16).set_focus(program_counter);
     frame.render_widget(memory_widget, memory_area);
 }
@@ -150,6 +155,7 @@ fn draw_top_area(area: Rect, frame: &mut Frame, app: &App) {
         .title(format!(" {} - {} ", app.title, app.version))
         .title_style(APP_TITLE_STYLE)
         .title_alignment(Alignment::Center);
+
     frame.render_widget(top, area);
 }
 

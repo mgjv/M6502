@@ -1,6 +1,5 @@
-use m6502::app::App;
-use m6502::tui;
-use m6502::binutils::*;
+use m6502::tui::{self, app::App};
+use m6502::binutils::{build_computer, Cli};
 
 use clap::Parser;
 use color_eyre::Result;
@@ -30,7 +29,6 @@ fn main() -> Result<()> {
 
     // TODO shut down the computer.
 
-
     result
 }
 
@@ -38,7 +36,7 @@ fn event_loop(mut terminal: ratatui::DefaultTerminal, mut app: App) -> color_eyr
     while !app.should_quit {
 
         // Update the internal state of the App
-        app.update();
+        app.proxy.update();
 
         // Draw the terminal, based on thaty state
         terminal.draw(|f| tui::draw_tui(f, &app))?;

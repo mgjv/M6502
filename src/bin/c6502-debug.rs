@@ -1,4 +1,4 @@
-use m6502::app::App;
+use m6502::proxy::ComputerProxy;
 use m6502::binutils::*;
 
 use clap::Parser;
@@ -21,7 +21,7 @@ fn main() -> Result<()> {
     // TODO Start the computer in a separate thread, with the correct
     // communication stuff done
 
-    let app = App::new(&computer);
+    let app = ComputerProxy::new(&computer);
 
     let items: Vec<String> = app.get_execution_history().iter()
         .map(|x| format!("{:04x}: {}", x.0, x.1)).collect();

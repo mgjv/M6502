@@ -2,29 +2,19 @@ use crate::computer::{cpu::inspect::CpuState, Computer};
 
 // App contains the model functionality for any UI to display
 // the state of a computer
-pub struct App<'a> {
-    // Some display stuff
-    pub title: String,
-    pub version: String,
-
+pub struct ComputerProxy<'a> {
     // A private reference to the computer we're shadowing
     computer: &'a Computer,
 
     // The current state of the CPU. Refresh with self.update()
     pub cpu_state: CpuState,
-
-    // Whether the app should be closed
-    pub should_quit: bool,
 }
 
-impl<'a> App<'a> {
+impl<'a> ComputerProxy<'a> {
     pub fn new(computer: &'a Computer) -> Self {
         Self {
             computer,
-            title: "CMOS 6502 emulator".to_string(),
-            version: "0.0.1".to_string(),
             cpu_state: computer.get_cpu_state(),
-            should_quit: false,
         }
     }
 
@@ -56,5 +46,4 @@ impl<'a> App<'a> {
     pub fn get_execution_future(&self) -> Vec<(u16, String)> {
         self.computer.disassemble(self.cpu_state.program_counter, 16)
     }
-
 }

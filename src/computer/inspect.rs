@@ -33,5 +33,4 @@ impl Computer {
     pub fn disassemble(&self, start_address: u16, length: u16) -> Vec<(u16, String)> {
         self.cpu.disassemble(start_address, length)
     }
-
 }
