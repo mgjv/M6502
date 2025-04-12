@@ -4,7 +4,7 @@ use ratatui::style::{Color, Style};
 use ratatui::layout::Rect;
 use ratatui::buffer::Buffer;
 
-use crate::tui::app::App;
+use crate::tui::App;
 
 pub struct MemoryWidget<'a> {
     app: &'a App<'a>,

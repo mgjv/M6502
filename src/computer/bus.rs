@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 use std::fmt;
 
-use log::{debug, error, info, trace};
-
 // This function works in this order, because it's the order in which
 // bytes are read from memory (i.e. little endian)
 pub fn lo_hi_to_address(lo: u8, hi: u8) -> u16 {
@@ -46,7 +44,7 @@ impl Bus {
     // TODO addPartialRam?
     // TODO proper error when size goes past end of memeoiry range
     pub fn add_ram(self, ram: Ram, start: u16) -> Result<Self, String> {
-        info!("Adding RAM of size {:x} at 0x{:04x}", ram.size(), start);
+        log::info!("Adding RAM of size {:x} at 0x{:04x}", ram.size(), start);
         let end = start + (ram.size() - 1) as u16;
         self.add_addressable(ram, start, end)
     }
@@ -54,7 +52,7 @@ impl Bus {
     // TODO addPartialRom?
     // TODO proper error when size goes past end of memeoiry range
     pub fn add_rom(self, rom_data: &[u8], start: u16) -> Result<Self, String> {
-        info!("Adding ROM of size {:x} at 0x{:04x}", rom_data.len(), start);
+        log::info!("Adding ROM of size {:x} at 0x{:04x}", rom_data.len(), start);
         let end = start +(rom_data.len() - 1) as u16;
         let rom = Ram::from(rom_data);
         self.add_addressable(rom, start, end)
@@ -66,7 +64,7 @@ impl Bus {
     }
 
     fn add_addressable<A: Addressable + 'static>(mut self, addressable: A, start: u16, end: u16) -> Result<Self, String> {
-        debug!("Adding addressable of size {:x} at 0x{:04x} to 0x{:04x}", addressable.size(), start, end);
+        log::debug!("Adding addressable of size {:x} at 0x{:04x} to 0x{:04x}", addressable.size(), start, end);
         if start > end {
             return Err(format!("Start address 0x{:04x} is greater than end address 0x{:04x}", start, end));
         }
@@ -93,7 +91,7 @@ impl Addressable for Bus {
                 return segment.addressable.read_byte(address - segment.start);
             }
         }
-        error!("Attempt to read from unmapped memory address 0x{:04x}", address);
+        log::error!("Attempt to read from unmapped memory address 0x{:04x}", address);
         0
     }
 
@@ -104,7 +102,7 @@ impl Addressable for Bus {
                 return;
             }
         }
-        error!("Attempt to write to unmapped memory address 0x{:04x}", address);
+        log::error!("Attempt to write to unmapped memory address 0x{:04x}", address);
     }
 
     // TODO implement read_two and four bytes more efficiently
@@ -130,7 +128,7 @@ pub trait Addressable: Debug {
 
     fn read_two_bytes(&self, address: u16) -> [u8; 2] {
         if address == 0xffff {
-            error!("Attempt to read past end of memory");
+            log::error!("Attempt to read past end of memory");
         }
         [
             self.read_byte(address),
@@ -141,7 +139,7 @@ pub trait Addressable: Debug {
     #[cfg(test)]
     fn read_four_bytes(&self, address: u16) -> [u8; 4] {
         if address >= 0xfffd {
-            error!("Attempt to read past end of memory");
+            log::error!("Attempt to read past end of memory");
         }
         [
             self.read_byte(address),
@@ -209,15 +207,15 @@ impl Addressable for Ram {
     }
 
     fn read_byte(&self, address: u16) -> u8 {
-		trace!(
-			"[Read]\t\t{:02x} from {:04x}",
+		log::trace!(
+			"[Read] {:02x} from {:04x}",
 			self.data[address as usize], address
 		);
 		self.data[address as usize]
 	}
 
     fn write_byte(&mut self, address: u16, value: u8) {
-		trace!("[Write]\t\t{:02x} at {:04x}", value, address);
+		log::trace!("[Write] {:02x} at {:04x}", value, address);
 		self.data[address as usize] = value;
 	}
 
